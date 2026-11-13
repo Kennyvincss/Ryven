@@ -1,0 +1,16 @@
+[toolchain]
+anchor_version = "0.32.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+ryven_curve = "7bmmZ19DfE6ondLjXTyw4tigdFqMPVjccCDchHnbvbMV"
+
+[programs.localnet]
+ryven_curve = "7bmmZ19DfE6ondLjXTyw4tigdFqMPVjccCDchHnbvbMV"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"

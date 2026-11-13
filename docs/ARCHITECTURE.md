@@ -1,10 +1,10 @@
-# RYVEN — Architecture
+# RYVEN: Architecture
 
 > **Launch Tokens. Deploy Agents. Automate Economies.**
 > Category: Agentic Payments & AI · Chain: Solana (Devnet) · Payment asset: USDC (SPL)
 
 Ryven is a token launchpad where every token can deploy an AI agent with its own
-treasury, spending limits and the ability to execute real USDC payments on Solana —
+treasury, spending limits and the ability to execute real USDC payments on Solana,
 without ever giving the AI (or the server) unrestricted access to anyone's funds.
 
 This document covers, in order:
@@ -103,7 +103,7 @@ Ryven/
 ## 3. Database schema
 
 PostgreSQL via Drizzle ORM (`src/lib/server/db/schema.ts`). Amounts are stored as
-`bigint` base units (USDC = 6 decimals) — never floats.
+`bigint` base units (USDC = 6 decimals), never floats.
 
 | Table | Purpose | Key columns / constraints |
 |---|---|---|
@@ -151,7 +151,7 @@ Programs used:
 | Token-2022 | `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` | launched tokens with on-chain metadata extension |
 | Associated Token Account | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` | recipient USDC accounts |
 | Memo | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | tags every agent payment with `ryven:pay:<paymentId>` |
-| ryven_curve (Anchor) | set via `NEXT_PUBLIC_CURVE_PROGRAM_ID` | bonding-curve buy/sell — **source included, deploy required** |
+| ryven_curve (Anchor) | set via `NEXT_PUBLIC_CURVE_PROGRAM_ID` | bonding-curve buy/sell: **source included, not deployed** |
 
 **Token launch** (wallet-signed, Token-2022): create mint account with
 `MetadataPointer` → initialize mint (6 decimals) → initialize `TokenMetadata`
@@ -261,15 +261,16 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | # | Module | Status |
 |---|---|---|
 | 1 | Architecture & scaffolding | ✅ |
-| 2 | Wallet connect, SIWS auth, balances | ✅ |
-| 3 | Delegated treasury (fund, allowance, revoke, withdraw) | ✅ |
-| 4 | Payment engine + signer + verification | ✅ |
-| 5 | AI terminal (Claude tool use) + activity log | ✅ |
+| 2 | Wallet connect, SIWS auth, balances, history | ✅ (auth flow tested with real ed25519 signatures) |
+| 3 | Delegated treasury (fund, allowance, revoke, withdraw, deposits) | ✅ (on-chain guarantees proven in LiteSVM tests) |
+| 4 | Payment engine + signer + verification | ✅ unit + LiteSVM tested. Devnet e2e script ready (`scripts/e2e-devnet.ts`): **run it after funding the fee payer** |
+| 5 | AI terminal (Claude tool use) + activity log | ✅ implemented; needs `ANTHROPIC_API_KEY` to run (not exercised with a live key yet) |
 | 6 | Approvals, pause, admin kill switch | ✅ |
-| 7 | Token launch (Token-2022 + metadata) | ✅ |
-| 8 | Bonding curve program | ⚠️ source written & `cargo check`ed; **needs deploy** (see SETUP.md) |
-| 9 | Discovery pages, dashboards | ✅ |
+| 7 | Token launch (Token-2022 + metadata, fixed supply) | ✅ implemented, server-side on-chain verification |
+| 8 | Bonding-curve program (`onchain/`) | ⚠️ source compiles (`cargo check`), math unit-tested; **not built for SBF / deployed**; UI does not call it |
+| 9 | Discovery pages, dashboards, admin | ✅ responsive (checked at 390px and 1440px) |
 | 10 | Recurring/scheduled campaigns | ❌ not implemented: instructions run on demand |
 | 11 | DEX migration after graduation | ❌ not implemented |
+| 12 | Distributed rate limiting | ❌ in-memory only (single instance) |
 
 See `docs/SETUP.md` for step-by-step setup and `docs/DEMO.md` for the judge demo.
