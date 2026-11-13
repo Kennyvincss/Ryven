@@ -6,7 +6,8 @@ import "server-only";
  */
 import { createHash } from "node:crypto";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
-import { SendTransactionError, TransactionExpiredBlockheightExceededError } from "@solana/web3.js";
+import { SendTransactionError } from "@solana/web3.js";
+import { BlockhashExpiredError, confirmByPolling } from "../../solana/confirm";
 import { db, schema, type Tx } from "../db";
 import { connection, readTreasuryState, getConfirmedTransaction, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
 import { signAgentPayment } from "../signer";
@@ -141,24 +142,23 @@ export async function proposePayments(args: {
 
       const since = startOfUtcDay();
       const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
-      const [reservedToday, inFlight, contributor, recent] = await Promise.all([
-        sumAmounts(tx, args.agentId, RESERVED, since),
-        sumAmounts(tx, args.agentId, IN_FLIGHT),
-        tx.query.contributors.findFirst({
-          where: and(eq(schema.contributors.agentId, args.agentId), eq(schema.contributors.wallet, item.recipient)),
-        }),
-        tx
-          .select({ n: sql<number>`count(*)::int` })
-          .from(schema.payments)
-          .where(
-            and(
-              eq(schema.payments.agentId, args.agentId),
-              eq(schema.payments.recipient, item.recipient),
-              inArray(schema.payments.status, RESERVED),
-              gte(schema.payments.createdAt, dayAgo),
-            ),
+      // Sequential: a transaction holds a single connection.
+      const reservedToday = await sumAmounts(tx, args.agentId, RESERVED, since);
+      const inFlight = await sumAmounts(tx, args.agentId, IN_FLIGHT);
+      const contributor = await tx.query.contributors.findFirst({
+        where: and(eq(schema.contributors.agentId, args.agentId), eq(schema.contributors.wallet, item.recipient)),
+      });
+      const recent = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.agentId, args.agentId),
+            eq(schema.payments.recipient, item.recipient),
+            inArray(schema.payments.status, RESERVED),
+            gte(schema.payments.createdAt, dayAgo),
           ),
-      ]);
+        );
 
       const decision = evaluatePayment(policy, item, {
         globalPause,
@@ -276,11 +276,10 @@ export async function executePayment(paymentId: string): Promise<Payment> {
   const conn = connection();
   let signature: string;
   let lastValidBlockHeight: number;
-  let blockhash: string;
   let raw: Buffer;
   try {
     const bh = await conn.getLatestBlockhash("confirmed");
-    blockhash = bh.blockhash;
+    const blockhash = bh.blockhash;
     lastValidBlockHeight = bh.lastValidBlockHeight;
     const signed = await signAgentPayment({
       paymentId: claimed.id,
@@ -315,12 +314,12 @@ export async function executePayment(paymentId: string): Promise<Payment> {
   }
 
   try {
-    const res = await conn.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-    if (res.value.err) {
-      return fail(claimed.id, `Transaction failed on-chain: ${JSON.stringify(res.value.err)}`, agent.id, iid);
+    const res = await confirmByPolling(conn, signature, lastValidBlockHeight, "confirmed");
+    if (res.err) {
+      return fail(claimed.id, `Transaction failed on-chain: ${JSON.stringify(res.err)}`, agent.id, iid);
     }
   } catch (e) {
-    if (!(e instanceof TransactionExpiredBlockheightExceededError)) {
+    if (!(e instanceof BlockhashExpiredError)) {
       await db.update(schema.payments).set({ error: `Confirmation uncertain: ${(e as Error).message}` }).where(eq(schema.payments.id, claimed.id));
     }
     return reconcilePayment(claimed.id);
@@ -418,13 +417,11 @@ export async function approvePayment(paymentId: string, approverWallet: string):
 
   const updated = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${p.agentId}))`);
-    const [reservedToday, inFlight, contributor] = await Promise.all([
-      sumAmounts(tx, p.agentId, RESERVED, startOfUtcDay()),
-      sumAmounts(tx, p.agentId, IN_FLIGHT),
-      tx.query.contributors.findFirst({
-        where: and(eq(schema.contributors.agentId, p.agentId), eq(schema.contributors.wallet, p.recipient)),
-      }),
-    ]);
+    const reservedToday = await sumAmounts(tx, p.agentId, RESERVED, startOfUtcDay());
+    const inFlight = await sumAmounts(tx, p.agentId, IN_FLIGHT);
+    const contributor = await tx.query.contributors.findFirst({
+      where: and(eq(schema.contributors.agentId, p.agentId), eq(schema.contributors.wallet, p.recipient)),
+    });
     const policy = { ...toPolicy(agent, treasury), recipientPolicy: "allowlist_or_approval" as const };
     const decision = evaluatePayment(
       policy,

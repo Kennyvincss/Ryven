@@ -1,5 +1,5 @@
 import "server-only";
-import { NextResponse } from "next/server";
+import { NextResponse, connection } from "next/server";
 import { ZodError } from "zod";
 import { AuthError } from "./auth";
 import { EngineError } from "./engine/payments";
@@ -24,6 +24,7 @@ export function errorResponse(e: unknown) {
 
 export function handler<A extends unknown[]>(fn: (req: Request, ...args: A) => Promise<Response>) {
   return async (req: Request, ...args: A) => {
+    await connection(); // always dynamic: API responses are never prerendered
     try {
       return await fn(req, ...args);
     } catch (e) {

@@ -6,13 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "keys": "tsx scripts/generate-keys.ts",
+    "test-usdc": "tsx scripts/create-test-usdc.mts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "@noble/hashes": "^2.4.0",
     "@solana/spl-memo": "^0.3.1",
     "@solana/spl-token": "^0.4.15",
+    "@solana/spl-token-metadata": "^0.1.6",
     "@solana/wallet-adapter-base": "^0.9.28",
     "@solana/wallet-adapter-react": "^0.15.40",
     "@solana/wallet-adapter-react-ui": "^0.9.40",
@@ -29,6 +36,7 @@
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
     "tweetnacl": "^1.0.3",
+    "undici": "^8.12.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {

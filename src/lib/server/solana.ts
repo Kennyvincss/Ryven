@@ -10,8 +10,21 @@ import { serverEnv } from "./env";
 
 let conn: Connection | null = null;
 export function connection(): Connection {
-  if (!conn) conn = new Connection(serverEnv.rpcUrl, { commitment: "confirmed" });
+  if (!conn) {
+    conn = new Connection(serverEnv.rpcUrl, {
+      commitment: "confirmed",
+      // Behind a corporate/sandbox proxy, route RPC through HTTPS_PROXY.
+      ...(process.env.HTTPS_PROXY ? { fetch: proxiedFetch as unknown as typeof fetch } : {}),
+    });
+  }
   return conn;
+}
+
+let dispatcher: import("undici").Dispatcher | null = null;
+async function proxiedFetch(input: string | URL | Request, init?: RequestInit) {
+  const undici = await import("undici");
+  dispatcher ??= new undici.EnvHttpProxyAgent();
+  return undici.fetch(input as string, { ...(init as object), dispatcher } as Parameters<typeof undici.fetch>[1]);
 }
 
 export const usdcMint = () => new PublicKey(publicConfig.usdcMint);
