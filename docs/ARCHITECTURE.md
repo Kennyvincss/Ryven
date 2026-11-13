@@ -263,7 +263,7 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 1 | Architecture & scaffolding | ✅ |
 | 2 | Wallet connect, SIWS auth, balances, history | ✅ (auth flow tested with real ed25519 signatures) |
 | 3 | Delegated treasury (fund, allowance, revoke, withdraw, deposits) | ✅ (on-chain guarantees proven in LiteSVM tests) |
-| 4 | Payment engine + signer + verification | ✅ unit + LiteSVM tested. Devnet e2e script ready (`scripts/e2e-devnet.ts`): **run it after funding the fee payer** |
+| 4 | Payment engine + signer + verification | ✅ unit + LiteSVM tested, and **verified end-to-end on devnet** (`scripts/e2e-devnet.ts`, see below) |
 | 5 | AI terminal (Claude tool use) + activity log | ✅ implemented; needs `ANTHROPIC_API_KEY` to run (not exercised with a live key yet) |
 | 6 | Approvals, pause, admin kill switch | ✅ |
 | 7 | Token launch (Token-2022 + metadata, fixed supply) | ✅ implemented, server-side on-chain verification |
@@ -272,5 +272,23 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 10 | Recurring/scheduled campaigns | ❌ not implemented: instructions run on demand |
 | 11 | DEX migration after graduation | ❌ not implemented |
 | 12 | Distributed rate limiting | ❌ in-memory only (single instance) |
+
+### Devnet end-to-end run (2026-11-13)
+
+`scripts/e2e-devnet.ts` against a running server, with a labelled Test-USDC mint
+(`EuQ8X7hWTG9ZFx5qHofg6tFr747rYwJXcJpSr4mfqTKu`). Every step was a real devnet transaction or API call:
+
+| Step | Result |
+|---|---|
+| Launch $DOGE2 (Token-2022 + metadata) | [57ncwz…](https://explorer.solana.com/tx/57ncwz5hgskyntSvsmbqvDK7ECbgWiCVq86LQHTYyc7jWpJ2K3oVNFA7xHfiq8YNzw8fJhZjgpzsu4ats9rtA2MV?cluster=devnet) |
+| Create treasury, deposit 100, delegate 100 | [3Pdeg1…](https://explorer.solana.com/tx/3Pdeg13ZKom2HfVkKvWzqAHgG6tnatpq9Bp7GiZ88UtoiMnxnBTbUystdpPzC2cFcEony1qV7ccWuee8crNoYNoN?cluster=devnet) |
+| Payment 1: 5 USDC (delegate-signed, memo `ryven:pay:<id>`) | [2WEQCv…](https://explorer.solana.com/tx/2WEQCvisQhyY29MQwXQom9bGbJYhXZaohB4F7UaNYm1wbfTiH5MtzCM9uQ16cdmoUyCMGnoyUWn5LjA1tNKGy2UP?cluster=devnet) |
+| Payment 2: 5 USDC | [rfFkHo…](https://explorer.solana.com/tx/rfFkHoQKTATyyKGfjrvcfPkBi6wpneUgvKXoXw35tFCsLViKx1BexT7MicqLLWYQYteStgj9CZ7LtNateJzskAu?cluster=devnet) |
+| Payment 3: 5 USDC | [51Mxaf…](https://explorer.solana.com/tx/51MxafeX8KVgrSKRNx8B3ryznw7pu6AgjfsKZZURnRYNFvisR2ESPaUxTyuPYznjLAPRD5yLfWyvMEMvEZiYFykc?cluster=devnet) |
+| On-chain after | recipients 5 / 5 / 5, treasury 85, allowance 85, daily budget left 5 |
+| Negative checks | 10 USDC > max → rejected; unlisted recipient → rejected; repeat recipient → approval; paused → rejected |
+
+The three payments went through the manual route (no `ANTHROPIC_API_KEY` in that
+environment), which uses the same policy engine and signer as the AI terminal.
 
 See `docs/SETUP.md` for step-by-step setup and `docs/DEMO.md` for the judge demo.
