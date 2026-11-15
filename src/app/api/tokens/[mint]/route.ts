@@ -1,31 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { PublicKey } from "@solana/web3.js";
-import { TOKEN_2022_PROGRAM_ID, getMint } from "@solana/spl-token";
+import { getMint } from "@solana/spl-token";
 import { db, schema } from "@/lib/server/db";
 import { handler, json } from "@/lib/server/http";
 import { agentStats, agentView, tokenView } from "@/lib/server/queries";
 import { connection, mainnetConnection } from "@/lib/server/solana";
+import { holderCount } from "@/lib/server/chain-reads";
 import { EngineError } from "@/lib/server/engine/payments";
 import { fromBaseUnits } from "@/lib/shared/amounts";
-
-const holderCache = new Map<string, { n: number; at: number }>();
-
-async function holderCount(mint: string): Promise<number | null> {
-  const c = holderCache.get(mint);
-  if (c && Date.now() - c.at < 60_000) return c.n;
-  try {
-    const accounts = await connection().getProgramAccounts(TOKEN_2022_PROGRAM_ID, {
-      commitment: "confirmed",
-      dataSlice: { offset: 64, length: 8 }, // amount field
-      filters: [{ memcmp: { offset: 0, bytes: mint } }],
-    });
-    const n = accounts.filter((a) => a.account.data.length === 8 && a.account.data.readBigUInt64LE(0) > 0n).length;
-    holderCache.set(mint, { n, at: Date.now() });
-    return n;
-  } catch {
-    return null;
-  }
-}
 
 export const GET = handler(async (_req: Request, { params }: { params: Promise<{ mint: string }> }) => {
   const { mint } = await params;
@@ -44,7 +26,7 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const [onchain, holders, trades] = await Promise.all([
     getMint(conn, new PublicKey(mint), "confirmed", new PublicKey(token.tokenProgram)).catch(() => null),
     // Counting holders needs getProgramAccounts, which public mainnet RPC doesn't allow.
-    isMainnet ? Promise.resolve(null) : holderCount(mint),
+    isMainnet ? Promise.resolve(null) : holderCount(mint, new PublicKey(token.tokenProgram)),
     db.select().from(schema.tokenTrades).where(eq(schema.tokenTrades.tokenId, token.id)).orderBy(desc(schema.tokenTrades.blockTime)).limit(100),
   ]);
   return json({

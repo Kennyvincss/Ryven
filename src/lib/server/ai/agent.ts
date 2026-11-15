@@ -19,7 +19,10 @@ import {
   isPlatformPaused,
   type Payment,
 } from "../engine/payments";
-import { readTreasuryState } from "../solana";
+import { connection, readTreasuryState } from "../solana";
+import { getHolders, walletBalances } from "../chain-reads";
+import { PublicKey } from "@solana/web3.js";
+import { getMint } from "@solana/spl-token";
 import { logActivity, type ActivityStatus } from "../engine/activity";
 import { fromBaseUnits, toBaseUnits } from "../../shared/amounts";
 import { PAYMENT_CATEGORY_IDS, USDC_DECIMALS, explorerTx } from "../../shared/config";
@@ -125,6 +128,25 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "get_token_info",
+    description:
+      "Read live on-chain data about this agent's own token: total supply, decimals, whether minting is revoked, holder count, the top holders (wallet, amount, % of supply), and whether the token has a tradable market. Use for questions about holders, distribution, supply or price.",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+    strict: true,
+  },
+  {
+    name: "get_wallet_balances",
+    description:
+      "Read the live SOL and token balances of a wallet: \"creator\" (the token creator you work for) or any Solana wallet address. Shows USDC and the agent's own token by name. Read-only.",
+    input_schema: {
+      type: "object",
+      properties: { wallet: { type: "string", description: "\"creator\" or a wallet address" } },
+      required: ["wallet"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
     name: "pause_agent",
     description:
       "Immediately pause this agent so no further payments execute. Use when the creator asks you to stop all payments, or if something looks wrong. Only the creator can resume.",
@@ -154,6 +176,7 @@ const ProposeInput = z.object({
 });
 const PeriodInput = z.object({ period: z.enum(["today", "7d", "all"]) });
 const PauseInput = z.object({ reason: z.string().min(1).max(300) });
+const WalletInput = z.object({ wallet: z.string().min(1).max(64) });
 
 type Ctx = { agentId: string; instructionId: string; emit: (e: AgentEvent) => void };
 
@@ -281,6 +304,67 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         ),
       };
     }
+    case "get_token_info": {
+      ctx.emit({ type: "status", status: "analysing", message: "Reading token supply and holders from Solana" });
+      const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      if (!token) return { content: "Token not found", isError: true };
+      const program = new PublicKey(token.tokenProgram);
+      const mintInfo = await getMint(connection(), new PublicKey(token.mint), "confirmed", program).catch(() => null);
+      const supply = mintInfo ? Number(fromBaseUnits(mintInfo.supply, mintInfo.decimals)) : null;
+      const report = await getHolders(token.mint, program).catch(() => null);
+      return {
+        content: JSON.stringify({
+          name: token.name,
+          symbol: token.symbol,
+          mint: token.mint,
+          network: token.network,
+          total_supply: supply,
+          decimals: mintInfo?.decimals ?? token.decimals,
+          mint_authority_revoked: mintInfo ? mintInfo.mintAuthority === null : null,
+          holder_count: report?.count ?? null,
+          top_holders: (report?.holders ?? []).slice(0, 10).map((h) => ({
+            wallet: h.owner,
+            amount: h.amount,
+            percent_of_supply: h.percent,
+            is_creator: h.owner === agent.creatorWallet,
+          })),
+          holder_data_source: report
+            ? report.source === "index"
+              ? "full on-chain index"
+              : `rebuilt from the token's transaction history${report.complete ? "" : " (latest 300 transactions only; older holders may be missing)"}, with live balances`
+            : "unavailable: the RPC refused the lookup",
+          market:
+            token.launchMode === "pumpfun"
+              ? "Trades on pump.fun (mainnet)."
+              : "No market: fixed-supply devnet token with no bonding curve or DEX pool, so it has no price and cannot be bought or sold yet.",
+        }),
+      };
+    }
+    case "get_wallet_balances": {
+      const { wallet } = WalletInput.parse(input);
+      const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      const address = wallet === "creator" ? agent.creatorWallet : wallet.trim();
+      try {
+        new PublicKey(address);
+      } catch {
+        return { content: `"${wallet}" is not a valid Solana wallet address`, isError: true };
+      }
+      ctx.emit({ type: "status", status: "analysing", message: `Reading balances of ${address.slice(0, 4)}…${address.slice(-4)}` });
+      const b = await walletBalances(address);
+      const name = (mint: string) => (mint === treasury.mint ? "USDC" : token && mint === token.mint ? `$${token.symbol}` : undefined);
+      return {
+        content: JSON.stringify({
+          wallet: address,
+          is_creator: address === agent.creatorWallet,
+          sol: b.sol,
+          tokens: b.tokens.slice(0, 25).map((t) => ({ mint: t.mint, name: name(t.mint), amount: t.amount })),
+          note:
+            address === agent.creatorWallet
+              ? "The creator also owns the agent's treasury token account, so USDC shown here includes the treasury balance."
+              : undefined,
+        }),
+      };
+    }
     case "pause_agent": {
       const { reason } = PauseInput.parse(input);
       await db
@@ -314,6 +398,8 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - You cannot change your own limits, approve payments, or resume after a pause. If asked, explain that only the creator can do that from the Ryven console.
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
+- For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
+- You cannot buy, sell, swap or trade tokens: you have no trading tool, and a devnet Ryven token has no market. Say so plainly.
 - Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
 }
 
