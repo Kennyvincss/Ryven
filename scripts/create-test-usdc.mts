@@ -16,8 +16,33 @@ if (!secret) throw new Error("Set FEE_PAYER_SECRET_KEY in .env first (npm run ke
 const payer = secret.trim().startsWith("[") ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secret))) : Keypair.fromSecretKey(bs58.decode(secret));
 const conn = new Connection(process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com", "confirmed");
 
-const bal = await conn.getBalance(payer.publicKey);
-if (bal < 5_000_000) throw new Error(`Fee payer ${payer.publicKey.toBase58()} needs devnet SOL. Get some at https://faucet.solana.com`);
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (attempt >= 4) {
+        console.error(`\n❌ Could not ${label}: ${msg}`);
+        if (/429|Too Many Requests/i.test(msg)) console.error("   → The public devnet server is rate-limiting you. Wait a minute and retry, or use a free Helius devnet RPC URL in SOLANA_RPC_URL.");
+        else if (/fetch failed|ENOTFOUND|ECONNRESET|ETIMEDOUT|network/i.test(msg)) console.error("   → Your computer can't reach api.devnet.solana.com. Check your internet, VPN or firewall/antivirus.");
+        console.error("");
+        process.exit(1);
+      }
+      console.log(`  (${label} failed, retrying in ${attempt * 3}s: ${msg.slice(0, 120)})`);
+      await new Promise((r) => setTimeout(r, attempt * 3000));
+    }
+  }
+}
+
+console.log(`Fee payer: ${payer.publicKey.toBase58()}`);
+console.log(`RPC: ${process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com"}`);
+const bal = await withRetry("read the fee payer's SOL balance", () => conn.getBalance(payer.publicKey));
+console.log(`Balance: ${bal / 1e9} SOL`);
+if (bal < 5_000_000) {
+  console.error(`\n❌ The fee payer has no devnet SOL. Go to https://faucet.solana.com, choose Devnet, and send SOL to:\n   ${payer.publicKey.toBase58()}\n`);
+  process.exit(1);
+}
 
 const mint = Keypair.generate();
 const tx = new Transaction().add(
@@ -25,12 +50,12 @@ const tx = new Transaction().add(
     fromPubkey: payer.publicKey,
     newAccountPubkey: mint.publicKey,
     space: MINT_SIZE,
-    lamports: await conn.getMinimumBalanceForRentExemption(MINT_SIZE),
+    lamports: await withRetry("read rent cost", () => conn.getMinimumBalanceForRentExemption(MINT_SIZE)),
     programId: TOKEN_PROGRAM_ID,
   }),
   createInitializeMint2Instruction(mint.publicKey, 6, payer.publicKey, null, TOKEN_PROGRAM_ID),
 );
-const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+const { blockhash, lastValidBlockHeight } = await withRetry("get a recent blockhash", () => conn.getLatestBlockhash("confirmed"));
 tx.recentBlockhash = blockhash;
 tx.feePayer = payer.publicKey;
 tx.sign(payer, mint);
