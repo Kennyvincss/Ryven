@@ -21,11 +21,12 @@ import {
 } from "../engine/payments";
 import { connection, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
+import { listTrades, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
 import { logActivity, type ActivityStatus } from "../engine/activity";
 import { fromBaseUnits, toBaseUnits } from "../../shared/amounts";
-import { PAYMENT_CATEGORY_IDS, USDC_DECIMALS, explorerTx } from "../../shared/config";
+import { LAUNCH_TOKEN_DECIMALS, PAYMENT_CATEGORY_IDS, USDC_DECIMALS, explorerTx } from "../../shared/config";
 
 export type AgentEvent =
   | { type: "instruction"; instructionId: string }
@@ -40,6 +41,7 @@ export type PaymentView = {
   id: string;
   recipient: string;
   amount: string;
+  unit: string;
   reason: string;
   category: string;
   status: Payment["status"];
@@ -53,7 +55,8 @@ export function paymentView(p: Payment): PaymentView {
   return {
     id: p.id,
     recipient: p.recipient,
-    amount: fromBaseUnits(p.amount, USDC_DECIMALS),
+    amount: fromBaseUnits(p.amount, p.decimals),
+    unit: p.asset === "usdc" ? "USDC" : `$${p.symbol}`,
     reason: p.reason,
     category: p.category,
     status: p.status,
@@ -102,11 +105,12 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "propose_payments",
     description:
-      "Submit USDC payments to the Ryven payment engine. The engine (not you) checks every payment against the creator's policy: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount_usdc is a decimal string like \"5\" or \"2.5\".",
+      "Submit payments to the Ryven payment engine, in USDC (asset \"usdc\") or in this agent's own token (asset \"token\", only if the creator enabled token rewards). The engine (not you) checks every payment against the creator's policy for that asset: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount is a decimal string like \"5\" or \"2.5\" in units of the chosen asset.",
     input_schema: {
       type: "object",
       properties: {
         campaign: { type: "string", description: "Short name for this batch, e.g. 'Daily contributor rewards'" },
+        asset: { type: "string", enum: ["usdc", "token"], description: "usdc, or token = this agent's own token" },
         category: { type: "string", enum: [...PAYMENT_CATEGORY_IDS] },
         payments: {
           type: "array",
@@ -114,15 +118,15 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
             type: "object",
             properties: {
               recipient_wallet: { type: "string" },
-              amount_usdc: { type: "string" },
+              amount: { type: "string" },
               reason: { type: "string" },
             },
-            required: ["recipient_wallet", "amount_usdc", "reason"],
+            required: ["recipient_wallet", "amount", "reason"],
             additionalProperties: false,
           },
         },
       },
-      required: ["campaign", "category", "payments"],
+      required: ["campaign", "asset", "category", "payments"],
       additionalProperties: false,
     },
     strict: true,
@@ -147,6 +151,30 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "get_trading_status",
+    description:
+      "Read the creator's pump.fun trading settings for you (mode off/proposal/autonomous, max SOL per trade, daily SOL limit, allowed coins), SOL spent on buys today, your mainnet trading wallet balances (autonomous mode) and recent trades.",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+    strict: true,
+  },
+  {
+    name: "propose_trade",
+    description:
+      "Buy or sell a pump.fun coin on Solana MAINNET (real SOL). Only coins on the creator's trading allowlist. The Ryven trading engine (not you) checks the creator's limits, simulates the trade and refuses anything that would spend more than allowed. In proposal mode the trade waits for the creator to sign it; in autonomous mode it executes from your trading wallet. buy: amount is SOL to spend, e.g. \"0.05\". sell: amount is the percent of holdings to sell, e.g. \"50\". Only trade when the creator asked for it or their standing instructions say so.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["buy", "sell"] },
+        mint: { type: "string", description: "Coin mint address (must be on the allowlist)" },
+        amount: { type: "string" },
+        reason: { type: "string" },
+      },
+      required: ["action", "mint", "amount", "reason"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
     name: "pause_agent",
     description:
       "Immediately pause this agent so no further payments execute. Use when the creator asks you to stop all payments, or if something looks wrong. Only the creator can resume.",
@@ -162,12 +190,13 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
 
 const ProposeInput = z.object({
   campaign: z.string().max(120),
+  asset: z.enum(["usdc", "token"]),
   category: z.enum(PAYMENT_CATEGORY_IDS),
   payments: z
     .array(
       z.object({
         recipient_wallet: z.string().min(32).max(44),
-        amount_usdc: z.string().regex(/^\d+(\.\d{1,6})?$/),
+        amount: z.string().regex(/^\d+(\.\d{1,6})?$/),
         reason: z.string().min(3).max(300),
       }),
     )
@@ -177,8 +206,37 @@ const ProposeInput = z.object({
 const PeriodInput = z.object({ period: z.enum(["today", "7d", "all"]) });
 const PauseInput = z.object({ reason: z.string().min(1).max(300) });
 const WalletInput = z.object({ wallet: z.string().min(1).max(64) });
+const TradeInput = z.object({
+  action: z.enum(["buy", "sell"]),
+  mint: z.string().min(32).max(44),
+  amount: z.string().regex(/^\d+(\.\d{1,9})?$/),
+  reason: z.string().min(3).max(300),
+});
 
 type Ctx = { agentId: string; instructionId: string; emit: (e: AgentEvent) => void };
+
+/** Own-token rewards treasury, summarised for the model (or a note that it's disabled). */
+async function tokenTreasurySummary(agent: typeof schema.agents.$inferSelect) {
+  if (agent.tokenDailyLimit === null) return { enabled: false, note: "The creator has not enabled rewards in the agent's own token." };
+  try {
+    const { treasury } = await loadAgent(agent.id, "token");
+    const [state, snap] = await Promise.all([readTreasuryState(treasury.address), getSpendingSnapshot(agent.id, "token")]);
+    const f = (v: bigint) => fromBaseUnits(v, treasury.decimals);
+    const delegated = state.delegate === agent.signerPubkey;
+    return {
+      enabled: true,
+      token: `$${treasury.symbol}`,
+      onchain_balance: f(state.balance),
+      onchain_allowance: delegated ? f(state.allowance) : "0",
+      spent_or_reserved_today: f(snap.reservedToday),
+      max_per_transaction: f(agent.tokenMaxPerTx ?? 0n),
+      autonomous_limit: f(agent.tokenAutoApproveLimit ?? 0n),
+      daily_limit: f(agent.tokenDailyLimit),
+    };
+  } catch (e) {
+    return { enabled: true, error: (e as Error).message };
+  }
+}
 
 async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ content: string; isError?: boolean }> {
   const { agent, treasury } = await loadAgent(ctx.agentId);
@@ -211,6 +269,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
             recipient_policy: agent.recipientPolicy,
           },
           day_resets_at_utc: new Date(snap.dayStartsAt.getTime() + 86400000).toISOString(),
+          own_token_rewards: await tokenTreasurySummary(agent),
         }),
       };
     }
@@ -269,16 +328,16 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
     case "propose_payments": {
       const parsed = ProposeInput.safeParse(input);
       if (!parsed.success) return { content: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
-      const { campaign, category, payments } = parsed.data;
+      const { campaign, category, payments, asset } = parsed.data;
       ctx.emit({ type: "status", status: "checking_permissions", message: `Checking ${payments.length} payment(s) against the spending policy` });
       const items = payments.map((p) => ({
         recipient: p.recipient_wallet.trim(),
-        amount: toBaseUnits(p.amount_usdc, USDC_DECIMALS),
+        amount: toBaseUnits(p.amount, asset === "usdc" ? USDC_DECIMALS : LAUNCH_TOKEN_DECIMALS),
         category,
         reason: p.reason,
         campaign,
       }));
-      const results = await proposePayments({ agentId: agent.id, instructionId: ctx.instructionId, source: "agent", items });
+      const results = await proposePayments({ agentId: agent.id, instructionId: ctx.instructionId, source: "agent", asset, items });
       const final: Payment[] = [];
       for (const r of results) {
         let p = r.payment;
@@ -365,6 +424,54 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         }),
       };
     }
+    case "get_trading_status": {
+      ctx.emit({ type: "status", status: "analysing", message: "Reading trading settings and wallet (mainnet)" });
+      const [trades, snap, wallet] = await Promise.all([
+        listTrades(agent.id, 10),
+        tradingSnapshot(agent.id),
+        agent.tradingMode === "autonomous" ? tradingWallet(agent).catch((e: Error) => ({ error: e.message })) : Promise.resolve(null),
+      ]);
+      return {
+        content: JSON.stringify({
+          mode: agent.tradingMode,
+          max_sol_per_trade: Number(agent.tradeMaxSol) / 1e9,
+          daily_sol_limit: Number(agent.tradeDailySol) / 1e9,
+          sol_spent_on_buys_today: Number(snap.spentTodayLamports) / 1e9,
+          allowed_coins: agent.tradeMints,
+          trading_wallet:
+            wallet && !("error" in wallet)
+              ? { address: wallet.address, sol: wallet.sol, tokens: wallet.tokens.map((t) => ({ mint: t.mint, amount: t.amount })) }
+              : wallet,
+          recent_trades: trades.map((t) => tradeView(t)),
+        }),
+      };
+    }
+    case "propose_trade": {
+      const parsed = TradeInput.safeParse(input);
+      if (!parsed.success) return { content: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
+      const { action, mint, amount, reason } = parsed.data;
+      if (action === "sell" && (Number(amount) < 1 || Number(amount) > 100)) return { content: "For a sell, amount is a percent from 1 to 100", isError: true };
+      ctx.emit({ type: "status", status: "checking_permissions", message: `Checking ${action} against trading limits` });
+      const { trade, duplicate } = await proposeTrade({
+        agentId: agent.id,
+        instructionId: ctx.instructionId,
+        action,
+        mint,
+        amount: action === "buy" ? toBaseUnits(amount, 9) : BigInt(Math.round(Number(amount))),
+        reason,
+      });
+      ctx.emit({
+        type: "status",
+        status: trade.status === "confirmed" ? "completed" : trade.status === "awaiting_signature" ? "awaiting_approval" : trade.status === "rejected" || trade.status === "failed" ? "failed" : "executing",
+        message:
+          trade.status === "confirmed"
+            ? `Trade confirmed on mainnet`
+            : trade.status === "awaiting_signature"
+              ? "Trade proposal waiting for the creator to sign"
+              : `Trade ${trade.status}: ${trade.error ?? trade.policy.summary}`,
+      });
+      return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
+    }
     case "pause_agent": {
       const { reason } = PauseInput.parse(input);
       await db
@@ -399,7 +506,8 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
-- You cannot buy, sell, swap or trade tokens: you have no trading tool, and a devnet Ryven token has no market. Say so plainly.
+- Trading: you can buy or sell pump.fun coins on Solana MAINNET with propose_trade, only if the creator enabled trading and only coins on their allowlist (check get_trading_status first). Proposal mode: the creator must sign each trade. Autonomous mode: you trade from your own small trading wallet within strict limits. Never trade on your own initiative unless the creator's instructions say so. A devnet Ryven token like your own has no market and cannot be traded.
+- Rewards can be paid in USDC or in your own token (asset "token") if the creator enabled token rewards; get_treasury_status shows both.
 - Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
 }
 

@@ -6,7 +6,8 @@ import "server-only";
  */
 import { createHash } from "node:crypto";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
-import { SendTransactionError } from "@solana/web3.js";
+import { PublicKey, SendTransactionError } from "@solana/web3.js";
+import { deriveTreasuryAddress, treasurySeed, type TreasuryAsset } from "../../solana/treasury";
 import { BlockhashExpiredError, confirmByPolling } from "../../solana/confirm";
 import { db, schema, type Tx } from "../db";
 import { connection, readTreasuryState, getConfirmedTransaction, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
@@ -14,7 +15,6 @@ import { signAgentPayment } from "../signer";
 import { evaluatePayment, type AgentPolicy, type PaymentProposal } from "./policy";
 import { logActivity } from "./activity";
 import { fromBaseUnits } from "../../shared/amounts";
-import { USDC_DECIMALS } from "../../shared/config";
 
 type Agent = typeof schema.agents.$inferSelect;
 type Treasury = typeof schema.treasuries.$inferSelect;
@@ -41,21 +41,60 @@ export async function isPlatformPaused(): Promise<boolean> {
   return row?.value === true;
 }
 
-export async function loadAgent(agentId: string): Promise<{ agent: Agent; treasury: Treasury }> {
+export async function loadAgent(agentId: string, asset: TreasuryAsset = "usdc"): Promise<{ agent: Agent; treasury: Treasury }> {
   const agent = await db.query.agents.findFirst({ where: eq(schema.agents.id, agentId) });
   if (!agent) throw new EngineError("Agent not found", 404);
-  const treasury = await db.query.treasuries.findFirst({ where: eq(schema.treasuries.agentId, agentId) });
+  const treasury =
+    asset === "token"
+      ? await ensureTokenTreasury(agent)
+      : await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agentId), eq(schema.treasuries.asset, "usdc")) });
   if (!treasury) throw new EngineError("Agent has no treasury", 409);
   return { agent, treasury };
 }
 
+/**
+ * The agent's second treasury, holding its OWN launched token (for token rewards).
+ * Created lazily: a creator-owned Token-2022 account derived from the creator's wallet.
+ */
+export async function ensureTokenTreasury(agent: Agent): Promise<Treasury> {
+  const existing = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "token")) });
+  if (existing) return existing;
+  const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+  if (!token) throw new EngineError("Agent token not found", 404);
+  if (token.network !== "devnet") throw new EngineError("Token rewards are only available for devnet tokens", 409);
+  const programId = new PublicKey(token.tokenProgram);
+  const address = deriveTreasuryAddress(new PublicKey(agent.creatorWallet), agent.id, "token", programId).toBase58();
+  await db
+    .insert(schema.treasuries)
+    .values({
+      agentId: agent.id,
+      asset: "token",
+      address,
+      seed: treasurySeed(agent.id, "token"),
+      ownerWallet: agent.creatorWallet,
+      mint: token.mint,
+      tokenProgram: token.tokenProgram,
+      decimals: token.decimals,
+      symbol: token.symbol,
+    })
+    .onConflictDoNothing();
+  const row = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "token")) });
+  if (!row) throw new EngineError("Could not create token treasury", 500);
+  return row;
+}
+
+export const assetLabel = (t: Pick<Treasury, "asset" | "symbol">) => (t.asset === "usdc" ? "USDC" : `$${t.symbol}`);
+export const fmtAmount = (amount: bigint, t: Pick<Treasury, "asset" | "symbol" | "decimals">) => `${fromBaseUnits(amount, t.decimals)} ${assetLabel(t)}`;
+
 export function toPolicy(agent: Agent, treasury: Treasury): AgentPolicy {
+  const isToken = treasury.asset === "token";
   return {
     status: agent.status,
     mode: agent.mode,
-    maxPerTx: agent.maxPerTx,
-    autoApproveLimit: agent.autoApproveLimit,
-    dailyLimit: agent.dailyLimit,
+    maxPerTx: isToken ? (agent.tokenMaxPerTx ?? 0n) : agent.maxPerTx,
+    autoApproveLimit: isToken ? (agent.tokenAutoApproveLimit ?? 0n) : agent.autoApproveLimit,
+    dailyLimit: isToken ? (agent.tokenDailyLimit ?? 0n) : agent.dailyLimit,
+    unit: { symbol: assetLabel(treasury), decimals: treasury.decimals },
     categories: agent.categories,
     recipientPolicy: agent.recipientPolicy,
     signerPubkey: agent.signerPubkey,
@@ -64,8 +103,8 @@ export function toPolicy(agent: Agent, treasury: Treasury): AgentPolicy {
   };
 }
 
-async function sumAmounts(tx: Tx | typeof db, agentId: string, statuses: Payment["status"][], since?: Date) {
-  const conds = [eq(schema.payments.agentId, agentId), inArray(schema.payments.status, statuses)];
+async function sumAmounts(tx: Tx | typeof db, agentId: string, asset: TreasuryAsset, statuses: Payment["status"][], since?: Date) {
+  const conds = [eq(schema.payments.agentId, agentId), eq(schema.payments.asset, asset), inArray(schema.payments.status, statuses)];
   if (since) conds.push(gte(schema.payments.reservedAt, since));
   const [row] = await tx
     .select({ total: sql<string>`coalesce(sum(${schema.payments.amount}), 0)::text` })
@@ -87,11 +126,11 @@ export async function syncTreasury(treasury: Treasury): Promise<TreasuryState> {
   return state;
 }
 
-export async function getSpendingSnapshot(agentId: string) {
+export async function getSpendingSnapshot(agentId: string, asset: TreasuryAsset = "usdc") {
   const since = startOfUtcDay();
   const [reservedToday, inFlight] = await Promise.all([
-    sumAmounts(db, agentId, RESERVED, since),
-    sumAmounts(db, agentId, IN_FLIGHT),
+    sumAmounts(db, agentId, asset, RESERVED, since),
+    sumAmounts(db, agentId, asset, IN_FLIGHT),
   ]);
   return { reservedToday, inFlight, dayStartsAt: since };
 }
@@ -110,11 +149,13 @@ export async function proposePayments(args: {
   agentId: string;
   instructionId: string;
   source: "agent" | "creator";
+  asset?: TreasuryAsset;
   items: ProposalInput[];
 }): Promise<ProposalResult[]> {
   if (args.items.length === 0) return [];
   if (args.items.length > 10) throw new EngineError("At most 10 payments per batch");
-  const { agent, treasury } = await loadAgent(args.agentId);
+  const asset = args.asset ?? "usdc";
+  const { agent, treasury } = await loadAgent(args.agentId, asset);
   const policy = toPolicy(agent, treasury);
   const [globalPause, onchain] = await Promise.all([
     isPlatformPaused(),
@@ -130,7 +171,7 @@ export async function proposePayments(args: {
   const results: ProposalResult[] = [];
   for (const item of args.items) {
     const idempotencyKey = createHash("sha256")
-      .update(`${args.agentId}|${args.instructionId}|${item.recipient}`)
+      .update(`${args.agentId}|${args.instructionId}|${item.recipient}${asset === "usdc" ? "" : `|${asset}`}`)
       .digest("hex");
 
     const result = await db.transaction(async (tx) => {
@@ -143,8 +184,8 @@ export async function proposePayments(args: {
       const since = startOfUtcDay();
       const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
       // Sequential: a transaction holds a single connection.
-      const reservedToday = await sumAmounts(tx, args.agentId, RESERVED, since);
-      const inFlight = await sumAmounts(tx, args.agentId, IN_FLIGHT);
+      const reservedToday = await sumAmounts(tx, args.agentId, asset, RESERVED, since);
+      const inFlight = await sumAmounts(tx, args.agentId, asset, IN_FLIGHT);
       const contributor = await tx.query.contributors.findFirst({
         where: and(eq(schema.contributors.agentId, args.agentId), eq(schema.contributors.wallet, item.recipient)),
       });
@@ -155,6 +196,7 @@ export async function proposePayments(args: {
           and(
             eq(schema.payments.agentId, args.agentId),
             eq(schema.payments.recipient, item.recipient),
+            eq(schema.payments.asset, asset),
             inArray(schema.payments.status, RESERVED),
             gte(schema.payments.createdAt, dayAgo),
           ),
@@ -183,6 +225,9 @@ export async function proposePayments(args: {
           contributorId: contributor?.id ?? null,
           amount: item.amount,
           mint: treasury.mint,
+          asset,
+          decimals: treasury.decimals,
+          symbol: treasury.symbol,
           category: item.category,
           campaign: item.campaign ?? "",
           reason: item.reason,
@@ -200,7 +245,7 @@ export async function proposePayments(args: {
 
     if (!result.duplicate) {
       const p = result.payment;
-      const amt = `${fromBaseUnits(p.amount, USDC_DECIMALS)} USDC`;
+      const amt = fmtAmount(p.amount, treasury);
       await logActivity({
         agentId: args.agentId,
         instructionId: args.instructionId,
@@ -258,7 +303,7 @@ export async function executePayment(paymentId: string): Promise<Payment> {
     if (!current) throw new EngineError("Payment not found", 404);
     return current;
   }
-  const { agent, treasury } = await loadAgent(claimed.agentId);
+  const { agent, treasury } = await loadAgent(claimed.agentId, claimed.asset);
   const iid = claimed.instructionId;
 
   if (await isPlatformPaused()) return fail(claimed.id, "Halted: platform payments paused before execution", agent.id, iid);
@@ -269,7 +314,7 @@ export async function executePayment(paymentId: string): Promise<Payment> {
     instructionId: iid,
     type: "payment_executing",
     status: "executing",
-    message: `Signing & submitting ${fromBaseUnits(claimed.amount, USDC_DECIMALS)} USDC to ${claimed.recipient.slice(0, 4)}…${claimed.recipient.slice(-4)}`,
+    message: `Signing & submitting ${fmtAmount(claimed.amount, treasury)} to ${claimed.recipient.slice(0, 4)}…${claimed.recipient.slice(-4)}`,
     data: { paymentId: claimed.id },
   });
 
@@ -290,6 +335,8 @@ export async function executePayment(paymentId: string): Promise<Payment> {
       recipient: claimed.recipient,
       amount: claimed.amount,
       recentBlockhash: blockhash,
+      tokenProgram: treasury.tokenProgram,
+      decimals: treasury.decimals,
     });
     signature = signed.signature;
     raw = signed.tx.serialize();
@@ -331,7 +378,7 @@ export async function executePayment(paymentId: string): Promise<Payment> {
 async function verifyAndConfirm(paymentId: string): Promise<Payment> {
   const p = await db.query.payments.findFirst({ where: eq(schema.payments.id, paymentId) });
   if (!p || !p.signature) throw new EngineError("Payment has no signature", 409);
-  const { agent, treasury } = await loadAgent(p.agentId);
+  const { agent, treasury } = await loadAgent(p.agentId, p.asset);
   let txInfo = await getConfirmedTransaction(p.signature);
   for (let i = 0; !txInfo && i < 5; i++) {
     await new Promise((r) => setTimeout(r, 1000));
@@ -369,7 +416,7 @@ async function verifyAndConfirm(paymentId: string): Promise<Payment> {
       instructionId: p.instructionId,
       type: "payment_confirmed",
       status: "completed",
-      message: `Confirmed on-chain: ${fromBaseUnits(p.amount, USDC_DECIMALS)} USDC → ${p.recipient.slice(0, 4)}…${p.recipient.slice(-4)}`,
+      message: `Confirmed on-chain: ${fmtAmount(p.amount, treasury)} → ${p.recipient.slice(0, 4)}…${p.recipient.slice(-4)}`,
       data: { paymentId: p.id, signature: p.signature },
     });
   }
@@ -409,7 +456,7 @@ export async function reconcileAgent(agentId: string) {
 export async function approvePayment(paymentId: string, approverWallet: string): Promise<Payment> {
   const p = await db.query.payments.findFirst({ where: eq(schema.payments.id, paymentId) });
   if (!p) throw new EngineError("Payment not found", 404);
-  const { agent, treasury } = await loadAgent(p.agentId);
+  const { agent, treasury } = await loadAgent(p.agentId, p.asset);
   if (agent.creatorWallet !== approverWallet) throw new EngineError("Only the agent's creator can approve payments", 403);
   if (p.status !== "awaiting_approval") throw new EngineError(`Payment is ${p.status}, not awaiting approval`, 409);
 
@@ -417,8 +464,8 @@ export async function approvePayment(paymentId: string, approverWallet: string):
 
   const updated = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${p.agentId}))`);
-    const reservedToday = await sumAmounts(tx, p.agentId, RESERVED, startOfUtcDay());
-    const inFlight = await sumAmounts(tx, p.agentId, IN_FLIGHT);
+    const reservedToday = await sumAmounts(tx, p.agentId, p.asset, RESERVED, startOfUtcDay());
+    const inFlight = await sumAmounts(tx, p.agentId, p.asset, IN_FLIGHT);
     const contributor = await tx.query.contributors.findFirst({
       where: and(eq(schema.contributors.agentId, p.agentId), eq(schema.contributors.wallet, p.recipient)),
     });
@@ -465,7 +512,7 @@ export async function approvePayment(paymentId: string, approverWallet: string):
     status: updated.status === "approved" ? "checking_permissions" : "failed",
     message:
       updated.status === "approved"
-        ? `Creator approved ${fromBaseUnits(p.amount, USDC_DECIMALS)} USDC payment`
+        ? `Creator approved ${fmtAmount(p.amount, treasury)} payment`
         : `Approval could not be applied: ${updated.policy.summary}`,
     data: { paymentId: p.id, approver: approverWallet },
   });
@@ -493,15 +540,15 @@ export async function rejectPayment(paymentId: string, approverWallet: string): 
     instructionId: p.instructionId,
     type: "approval",
     status: "failed",
-    message: `Creator rejected ${fromBaseUnits(p.amount, USDC_DECIMALS)} USDC payment`,
+    message: `Creator rejected ${fromBaseUnits(p.amount, p.decimals)} ${p.asset === "usdc" ? "USDC" : `$${p.symbol}`} payment`,
     data: { paymentId: p.id },
   });
   return row;
 }
 
-/** Verifies a creator/community transaction against the treasury and records deposits. */
+/** Verifies a creator/community transaction against the agent's treasuries and records deposits. */
 export async function recordTreasuryTransaction(agentId: string, signature: string) {
-  const { agent, treasury } = await loadAgent(agentId);
+  const { agent } = await loadAgent(agentId);
   let txInfo = await getConfirmedTransaction(signature);
   for (let i = 0; !txInfo && i < 8; i++) {
     await new Promise((r) => setTimeout(r, 1500));
@@ -509,42 +556,47 @@ export async function recordTreasuryTransaction(agentId: string, signature: stri
   }
   if (!txInfo) throw new EngineError("Transaction not found on-chain (yet)", 404);
   if (txInfo.meta?.err) throw new EngineError("Transaction failed on-chain", 400);
-  const delta = tokenDeltaForAccount(txInfo, treasury.address);
   const signer = txInfo.transaction.message.staticAccountKeys[0].toBase58();
-  if (delta > 0n) {
-    const inserted = await db
-      .insert(schema.treasuryDeposits)
-      .values({
-        treasuryId: treasury.id,
-        signature,
-        fromWallet: signer,
-        amount: delta,
-        blockTime: txInfo.blockTime ? new Date(txInfo.blockTime * 1000) : null,
-      })
-      .onConflictDoNothing()
-      .returning();
-    if (inserted.length) {
-      await db
-        .update(schema.treasuries)
-        .set({ totalDeposits: sql`${schema.treasuries.totalDeposits} + ${delta}` })
-        .where(eq(schema.treasuries.id, treasury.id));
+  const treasuries = await db.select().from(schema.treasuries).where(eq(schema.treasuries.agentId, agentId));
+  let total = 0n;
+  for (const treasury of treasuries) {
+    const delta = tokenDeltaForAccount(txInfo, treasury.address);
+    if (delta > 0n) {
+      const inserted = await db
+        .insert(schema.treasuryDeposits)
+        .values({
+          treasuryId: treasury.id,
+          signature: treasuries.length > 1 && treasury.asset === "token" ? `${signature}:token` : signature,
+          fromWallet: signer,
+          amount: delta,
+          blockTime: txInfo.blockTime ? new Date(txInfo.blockTime * 1000) : null,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (inserted.length) {
+        await db
+          .update(schema.treasuries)
+          .set({ totalDeposits: sql`${schema.treasuries.totalDeposits} + ${delta}` })
+          .where(eq(schema.treasuries.id, treasury.id));
+        await logActivity({
+          agentId,
+          type: "treasury_deposit",
+          status: "completed",
+          message: `Treasury received ${fmtAmount(delta, treasury)} (verified on-chain)`,
+          data: { signature, from: signer },
+        });
+      }
+    } else if (delta < 0n && signer === agent.creatorWallet) {
       await logActivity({
         agentId,
-        type: "treasury_deposit",
-        status: "completed",
-        message: `Treasury received ${fromBaseUnits(delta, USDC_DECIMALS)} USDC (verified on-chain)`,
-        data: { signature, from: signer },
+        type: "treasury_withdrawal",
+        status: "info",
+        message: `Creator withdrew ${fmtAmount(-delta, treasury)} from the treasury`,
+        data: { signature },
       });
     }
-  } else if (delta < 0n && signer === agent.creatorWallet) {
-    await logActivity({
-      agentId,
-      type: "treasury_withdrawal",
-      status: "info",
-      message: `Creator withdrew ${fromBaseUnits(-delta, USDC_DECIMALS)} USDC from the treasury`,
-      data: { signature },
-    });
+    total += delta;
+    await syncTreasury(treasury).catch(() => undefined);
   }
-  const state = await syncTreasury(treasury);
-  return { delta, state };
+  return { delta: total };
 }

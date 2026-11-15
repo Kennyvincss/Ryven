@@ -204,6 +204,30 @@ Engine guarantees (deterministic TypeScript, not the LLM): per-tx max,
 autonomous-approval threshold, daily limit, recipient allowlist, categories,
 duplicate prevention, pause.
 
+### Token rewards (second treasury)
+
+An agent can also pay in its **own launched token** (e.g. $DOGE2). It uses the same delegated
+model with a second creator-owned treasury (`asset = "token"`, Token-2022, seed `"ryt…"`),
+its own on-chain allowance and its own limits (`token_max_per_tx`, `token_daily_limit`,
+`token_auto_approve_limit`). Payments, approvals, verification and idempotency are shared;
+every payment row records its `asset`, `symbol` and `decimals`.
+
+### Agent trading on pump.fun (mainnet)
+
+| Mode | Who signs | Funds at risk |
+|---|---|---|
+| `off` | n/a | none |
+| `proposal` | the creator, in their own wallet | only what the creator approves per trade |
+| `autonomous` | the agent's key, as its **own mainnet trading wallet** | whatever the creator sent to that wallet |
+
+Every trade passes: deterministic policy (`trade-policy.ts`: mode, coin allowlist, SOL per
+trade, daily SOL, wallet balance + fee reserve, pauses) → PumpPortal builds the transaction
+→ **program allowlist + single-signer check** → **mainnet simulation measuring the exact
+SOL the wallet would lose** (refused above amount × 1.1 + 0.01 SOL) → sign → send → confirm →
+record the real SOL change. The creator can drain the trading wallet back to themselves at
+any time (fixed-destination withdrawal). Autonomous mode means a server-held hot key controls
+real SOL; the UI makes the creator acknowledge this.
+
 ## 7. Payment execution architecture
 
 ```
@@ -273,7 +297,11 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 10 | Recurring/scheduled campaigns | ❌ not implemented: instructions run on demand |
 | 11 | DEX migration after graduation | ❌ not implemented |
 | 13 | pump.fun launches on mainnet (PumpPortal Local API + Pinata) | ✅ implemented; tested up to mainnet simulation with real PumpPortal transactions. A real mainnet launch costs SOL and hasn't been done from this environment |
-| 14 | AI agents for mainnet coins | ❌ not implemented: agents/payments run on devnet |
+| 14 | AI agents for mainnet coins | ❌ not implemented: agent treasuries/payments run on devnet (trading is mainnet) |
+| 15 | Agent reads holders / supply / wallet balances | ✅ live on devnet (holder fallback via transaction history when the RPC has no token index) |
+| 16 | Rewards in the agent's own token | ✅ **verified end-to-end on devnet** (`scripts/e2e-devnet.ts` step 9) + LiteSVM Token-2022 tests |
+| 17 | pump.fun trading: proposal + autonomous | ✅ implemented; tested against real PumpPortal + mainnet simulation (policy, allowlist, spend guard, duplicates, withdraw). No real mainnet trade executed from this environment (needs real SOL) |
+| 18 | Database auto-migration on dev startup | ✅ |
 | 12 | Distributed rate limiting | ❌ in-memory only (single instance) |
 
 ### Devnet end-to-end run (2026-11-13)

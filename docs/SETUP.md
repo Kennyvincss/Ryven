@@ -209,7 +209,42 @@ Not supported yet: AI agents for mainnet coins (agents run on devnet in this bui
 
 ---
 
-## 7. Optional: deploying the bonding-curve program
+## 7. Optional: rewards in your own token, and agent trading
+
+### Rewards paid in your token (devnet)
+
+1. Open your agent's console → **Permissions** → **Rewards in $YOURTOKEN** → tick **Enabled**,
+   set the limits, **Save token rewards**.
+2. On the **Treasury** card click the **$YOURTOKEN rewards** tab → **Fund** → deposit some of
+   your tokens and set an allowance → approve in your wallet.
+3. Ask the agent, e.g. *"Reward @alice with 1000 DOGE2"*, or use **Manual payment** →
+   **Pay in $YOURTOKEN**.
+
+### Trading on pump.fun (mainnet, REAL SOL)
+
+Needs the pump.fun setup from §6 (no Pinata key needed for trading itself).
+
+1. Console → **Permissions** → **pump.fun trading** → choose a mode:
+   - **Proposals** (safer): the agent proposes trades; you sign each one in your wallet from
+     the **Trading** tab.
+   - **Autonomous** (risky): the agent trades by itself from its **own trading wallet**. Its
+     address is shown in the **Trading** tab; send it only as much SOL as you're fine losing.
+2. Set **Max SOL per trade**, **Daily SOL limit**, and the **allowed coins** (pump.fun mint
+   addresses). The agent can't trade anything else.
+3. Switch Phantom to **Mainnet** to sign trades.
+4. Ask the agent, e.g. *"Buy 0.01 SOL of <coin address>"* or *"Sell 50% of <coin>"*.
+5. **Trading → Withdraw everything to me** sends every token and all SOL from the agent's
+   trading wallet back to your wallet.
+
+Every trade is checked by Ryven before it's signed: your limits, the coin allowlist, the
+programs it calls, and a mainnet simulation that refuses it if the wallet would lose more than
+the trade amount plus 10% slippage and fees. In autonomous mode the agent's key is held
+(encrypted) by your Ryven server, so a compromised server could misuse whatever SOL is in
+that trading wallet. Keep it small.
+
+---
+
+## 8. Optional: deploying the bonding-curve program
 
 Bonding-curve trading needs the Anchor program in `onchain/`. It is **devnet-only and
 unaudited**. Requirements: Rust, the Solana CLI (https://solana.com/docs/intro/installation)

@@ -1,6 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { PublicKey } from "@solana/web3.js";
 import { db, schema } from "./db";
 import { AuthError, requireSession } from "./auth";
 import { EngineError } from "./engine/payments";
@@ -35,6 +36,42 @@ export const PolicyInput = z
   .refine((p) => p.autoApproveLimit <= p.maxPerTx, "Autonomous limit cannot exceed the max per transaction")
   .refine((p) => p.maxPerTx <= p.dailyLimit, "Max per transaction cannot exceed the daily limit")
   .refine((p) => p.dailyLimit <= MAX_DAILY, "Daily limit too high for this deployment");
+
+/** Limits for rewards paid in the agent's own token (6 decimals). null disables token rewards. */
+export const TokenPolicyInput = z
+  .object({
+    maxPerTx: usdcAmount,
+    autoApproveLimit: usdcAmount,
+    dailyLimit: usdcAmount,
+  })
+  .refine((p) => p.maxPerTx > 0n && p.dailyLimit > 0n, "Token limits must be greater than zero")
+  .refine((p) => p.autoApproveLimit <= p.maxPerTx, "Token autonomous limit cannot exceed the max per payment")
+  .refine((p) => p.maxPerTx <= p.dailyLimit, "Token max per payment cannot exceed the token daily limit")
+  .nullable();
+
+const solAmount = z
+  .string()
+  .regex(/^\d+(\.\d{1,9})?$/, "Use a SOL amount like 0.05")
+  .transform((v) => toBaseUnits(v, 9));
+const pubkey = z.string().refine((v) => {
+  try {
+    return new PublicKey(v).toBase58() === v;
+  } catch {
+    return false;
+  }
+}, "Invalid token address");
+
+/** pump.fun trading limits (mainnet). Hard ceilings protect against fat-finger settings. */
+export const TradingInput = z
+  .object({
+    mode: z.enum(["off", "proposal", "autonomous"]),
+    maxSolPerTrade: solAmount,
+    dailySol: solAmount,
+    mints: z.array(pubkey).max(20),
+  })
+  .refine((p) => p.maxSolPerTrade <= p.dailySol, "Max per trade cannot exceed the daily SOL limit")
+  .refine((p) => p.dailySol <= toBaseUnits("25", 9), "Daily SOL limit is capped at 25 SOL")
+  .refine((p) => p.mode === "off" || (p.maxSolPerTrade > 0n && p.mints.length > 0), "Set a max SOL per trade and at least one allowed coin");
 
 export const ProfileInput = z.object({
   name: z.string().trim().min(2).max(48),

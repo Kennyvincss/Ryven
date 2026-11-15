@@ -15,6 +15,13 @@
       "when": 1794781524711,
       "tag": "0001_pumpfun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794783062399,
+      "tag": "0002_token_rewards_trading",
+      "breakpoints": true
     }
   ]
 }

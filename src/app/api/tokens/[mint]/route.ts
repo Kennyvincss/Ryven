@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
 import { db, schema } from "@/lib/server/db";
@@ -19,7 +19,7 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.mint, mint) });
   if (!token) throw new EngineError("Token not found", 404);
   const agent = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
-  const treasury = agent ? await db.query.treasuries.findFirst({ where: eq(schema.treasuries.agentId, agent.id) }) : null;
+  const treasury = agent ? await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "usdc")) }) : null;
   const stats = agent ? (await agentStats([agent.id])).get(agent.id) : undefined;
   const isMainnet = token.network === "mainnet";
   const conn = isMainnet ? mainnetConnection() : connection();

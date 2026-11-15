@@ -3,6 +3,7 @@ import {
   AccountLayout,
   ACCOUNT_SIZE,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Connection, PublicKey, type ParsedTransactionWithMeta, type VersionedTransactionResponse } from "@solana/web3.js";
 import { publicConfig } from "../shared/config";
@@ -45,7 +46,7 @@ export type TreasuryState = {
 export async function readTreasuryState(address: string): Promise<TreasuryState> {
   const info = await connection().getAccountInfo(new PublicKey(address), "confirmed");
   if (!info) return { exists: false, owner: null, mint: null, balance: 0n, delegate: null, allowance: 0n, frozen: false };
-  if (!info.owner.equals(TOKEN_PROGRAM_ID) || info.data.length < ACCOUNT_SIZE) {
+  if (!(info.owner.equals(TOKEN_PROGRAM_ID) || info.owner.equals(TOKEN_2022_PROGRAM_ID)) || info.data.length < ACCOUNT_SIZE) {
     throw new Error("Treasury address is not an SPL token account");
   }
   const a = AccountLayout.decode(info.data.subarray(0, ACCOUNT_SIZE));

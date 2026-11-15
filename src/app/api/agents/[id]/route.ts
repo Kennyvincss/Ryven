@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getSession } from "@/lib/server/auth";
-import { PolicyInput, ProfileInput, requireCreator } from "@/lib/server/agents";
+import { PolicyInput, ProfileInput, TokenPolicyInput, TradingInput, requireCreator } from "@/lib/server/agents";
 import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
@@ -16,7 +16,7 @@ export const GET = handler(async (_req: Request, { params }: P) => {
   const session = await getSession();
   const isCreator = session?.wallet === agent.creatorWallet;
   const [treasury, token, stats, contributors, payments] = await Promise.all([
-    db.query.treasuries.findFirst({ where: eq(schema.treasuries.agentId, id) }),
+    db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, "usdc")) }),
     db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) }),
     agentStats([id]),
     db.select().from(schema.contributors).where(eq(schema.contributors.agentId, id)).orderBy(desc(schema.contributors.activityScore)),
@@ -52,11 +52,48 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
   const body = await req.json();
   const profile = ProfileInput.partial().parse(body);
   const policy = body.policy ? PolicyInput.parse(body.policy) : null;
+  const tokenPolicy = "tokenPolicy" in body ? TokenPolicyInput.parse(body.tokenPolicy) : undefined;
+  const trading = body.trading ? TradingInput.parse(body.trading) : null;
   const [updated] = await db
     .update(schema.agents)
-    .set({ ...profile, ...(policy ?? {}), updatedAt: new Date() })
+    .set({
+      ...profile,
+      ...(policy ?? {}),
+      ...(tokenPolicy !== undefined
+        ? {
+            tokenMaxPerTx: tokenPolicy?.maxPerTx ?? null,
+            tokenAutoApproveLimit: tokenPolicy?.autoApproveLimit ?? null,
+            tokenDailyLimit: tokenPolicy?.dailyLimit ?? null,
+          }
+        : {}),
+      ...(trading
+        ? { tradingMode: trading.mode, tradeMaxSol: trading.maxSolPerTrade, tradeDailySol: trading.dailySol, tradeMints: trading.mints }
+        : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(schema.agents.id, agent.id))
     .returning();
+  if (tokenPolicy !== undefined) {
+    await logActivity({
+      agentId: id,
+      type: "policy_updated",
+      status: "info",
+      message: tokenPolicy
+        ? `Creator enabled token rewards (max/payment ${body.tokenPolicy.maxPerTx}, daily ${body.tokenPolicy.dailyLimit})`
+        : "Creator disabled token rewards",
+    });
+  }
+  if (trading) {
+    await logActivity({
+      agentId: id,
+      type: "policy_updated",
+      status: "info",
+      message:
+        trading.mode === "off"
+          ? "Creator turned trading off"
+          : `Creator set trading to ${trading.mode} mode (max ${body.trading.maxSolPerTrade} SOL/trade, ${body.trading.dailySol} SOL/day, ${trading.mints.length} coin(s))`,
+    });
+  }
   if (policy) {
     await logActivity({
       agentId: id,
@@ -65,6 +102,6 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
       message: `Creator updated spending policy (mode ${policy.mode}, max/tx ${body.policy.maxPerTx}, daily ${body.policy.dailyLimit} USDC)`,
     });
   }
-  const treasury = await db.query.treasuries.findFirst({ where: eq(schema.treasuries.agentId, id) });
+  const treasury = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, "usdc")) });
   return json({ agent: agentView(updated, treasury) });
 });

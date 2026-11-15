@@ -26,6 +26,18 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 // ───────────────────────────── enums ─────────────────────────────
 export const launchModeEnum = pgEnum("launch_mode", ["fixed_supply", "bonding_curve", "pumpfun"]);
 export const networkEnum = pgEnum("network", ["devnet", "mainnet"]);
+/** What a treasury / payment is denominated in: USDC, or the agent's own launched token. */
+export const assetEnum = pgEnum("asset", ["usdc", "token"]);
+export const tradingModeEnum = pgEnum("trading_mode", ["off", "proposal", "autonomous"]);
+export const tradeSideEnum2 = pgEnum("trade_action", ["buy", "sell"]);
+export const tradeStatusEnum = pgEnum("trade_status", [
+  "rejected", // failed a policy check
+  "awaiting_signature", // proposal mode: waiting for the creator to sign in their wallet
+  "executing", // sent to Solana
+  "confirmed", // landed + verified
+  "failed", // did not land / failed on-chain
+  "cancelled", // creator dismissed the proposal
+]);
 export const launchStatusEnum = pgEnum("launch_status", ["pending", "live", "graduated", "failed"]);
 export const agentStatusEnum = pgEnum("agent_status", ["active", "paused"]);
 export const agentModeEnum = pgEnum("agent_mode", ["autonomous", "approval"]);
@@ -141,6 +153,15 @@ export const agents = pgTable(
     dailyLimit: amount("daily_limit").notNull(),
     categories: text("categories").array().notNull().default(sql`ARRAY[]::text[]`),
     recipientPolicy: recipientPolicyEnum("recipient_policy").notNull().default("allowlist_only"),
+    // ── rewards paid in the agent's own token (base units of that token). null = disabled ──
+    tokenMaxPerTx: bigint("token_max_per_tx", { mode: "bigint" }),
+    tokenAutoApproveLimit: bigint("token_auto_approve_limit", { mode: "bigint" }),
+    tokenDailyLimit: bigint("token_daily_limit", { mode: "bigint" }),
+    // ── pump.fun trading on mainnet (lamports). Only the creator can change these. ──
+    tradingMode: tradingModeEnum("trading_mode").notNull().default("off"),
+    tradeMaxSol: bigint("trade_max_sol", { mode: "bigint" }).notNull().default(sql`0`),
+    tradeDailySol: bigint("trade_daily_sol", { mode: "bigint" }).notNull().default(sql`0`),
+    tradeMints: text("trade_mints").array().notNull().default(sql`ARRAY[]::text[]`),
     // Public key of the agent's delegate signer (private key lives in agent_signers).
     signerPubkey: text("signer_pubkey").notNull().unique(),
     createdAt: createdAt(),
@@ -161,16 +182,21 @@ export const agentSigners = pgTable("agent_signers", {
   createdAt: createdAt(),
 });
 
-export const treasuries = pgTable("treasuries", {
+export const treasuries = pgTable(
+  "treasuries",
+  {
   id: uuid("id").primaryKey().defaultRandom(),
   agentId: uuid("agent_id")
     .notNull()
-    .unique()
     .references(() => agents.id, { onDelete: "cascade" }),
+  asset: assetEnum("asset").notNull().default("usdc"),
   address: text("address").notNull().unique(),
   seed: text("seed").notNull(),
   ownerWallet: text("owner_wallet").notNull(),
   mint: text("mint").notNull(),
+  tokenProgram: text("token_program").notNull().default("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+  decimals: integer("decimals").notNull().default(6),
+  symbol: text("symbol").notNull().default("USDC"),
   // Display cache only — authoritative values are always read from chain.
   lastBalance: amount("last_balance").notNull().default(sql`0`),
   lastAllowance: amount("last_allowance").notNull().default(sql`0`),
@@ -179,7 +205,9 @@ export const treasuries = pgTable("treasuries", {
   totalDeposits: amount("total_deposits").notNull().default(sql`0`),
   totalSpent: amount("total_spent").notNull().default(sql`0`),
   createdAt: createdAt(),
-});
+  },
+  (t) => [uniqueIndex("treasuries_agent_asset_uq").on(t.agentId, t.asset)],
+);
 
 export const treasuryDeposits = pgTable(
   "treasury_deposits",
@@ -231,6 +259,9 @@ export const payments = pgTable(
     contributorId: uuid("contributor_id").references(() => contributors.id, { onDelete: "set null" }),
     amount: amount("amount").notNull(),
     mint: text("mint").notNull(),
+    asset: assetEnum("asset").notNull().default("usdc"),
+    decimals: integer("decimals").notNull().default(6),
+    symbol: text("symbol").notNull().default("USDC"),
     category: text("category").notNull(),
     campaign: text("campaign").notNull().default(""),
     reason: text("reason").notNull(),
@@ -308,3 +339,33 @@ export const platformSettings = pgTable("platform_settings", {
   updatedBy: text("updated_by"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Agent trades on pump.fun (mainnet). Proposal mode: creator signs. Autonomous: agent wallet signs. */
+export const agentTrades = pgTable(
+  "agent_trades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    instructionId: text("instruction_id"),
+    mode: tradingModeEnum("mode").notNull(),
+    action: tradeSideEnum2("action").notNull(),
+    mint: text("mint").notNull(),
+    /** buy: lamports of SOL to spend. sell: percent of holdings (1-100). */
+    amount: bigint("amount", { mode: "bigint" }).notNull(),
+    reason: text("reason").notNull(),
+    /** Wallet that executes the trade: creator (proposal) or the agent's trading wallet (autonomous). */
+    wallet: text("wallet").notNull(),
+    status: tradeStatusEnum("status").notNull(),
+    policy: jsonb("policy").$type<PolicyRecord>().notNull(),
+    reservedAt: timestamp("reserved_at", { withTimezone: true }),
+    signature: text("signature").unique(),
+    solDelta: bigint("sol_delta", { mode: "bigint" }),
+    error: text("error"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("trades_agent_created_idx").on(t.agentId, t.createdAt)],
+);

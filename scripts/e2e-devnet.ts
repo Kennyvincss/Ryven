@@ -13,7 +13,8 @@ import nacl from "tweetnacl";
 import bs58 from "bs58";
 import {
   ACCOUNT_SIZE,
-  TOKEN_PROGRAM_ID,
+  getAccountLenForMint,
+  getMint,
   createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
   getAssociatedTokenAddressSync,
@@ -43,7 +44,7 @@ async function sendAndConfirmTransaction(c: Connection, tx: Transaction, signers
 }
 
 let cookie = "";
-async function call<T = any>(path: string, body?: unknown, method?: string): Promise<T> {
+async function call<T = unknown>(path: string, body?: unknown, method?: string): Promise<T> {
   const res = await fetch(BASE + path, {
     method: method ?? (body !== undefined ? "POST" : "GET"),
     headers: { "content-type": "application/json", cookie, origin: BASE },
@@ -200,6 +201,56 @@ async function main() {
   await call(`/api/agents/${agent.id}/status`, { action: "pause" });
   assert((await pay(contributors[1].publicKey, "1")).payment.status === "rejected", "paused agent → rejected");
   await call(`/api/agents/${agent.id}/status`, { action: "resume" });
+
+  step(9, "Token rewards: pay a contributor in $DOGE2 from a creator-owned Token-2022 treasury");
+  await call(`/api/agents/${agent.id}`, { tokenPolicy: { maxPerTx: "1000", autoApproveLimit: "1000", dailyLimit: "5000" } }, "PATCH");
+  const tt = await call<{ address: string; mint: string; tokenProgram: string; decimals: number; enabled: boolean }>(`/api/agents/${agent.id}/treasury?asset=token`);
+  assert(tt.enabled && tt.mint === mint.publicKey.toBase58(), "token rewards enabled; token treasury derived for $DOGE2");
+  const t22 = new PublicKey(tt.tokenProgram);
+  const mintInfo = await getMint(conn, mint.publicKey, "confirmed", t22);
+  const size = getAccountLenForMint(mintInfo);
+  const fundTokTx = new Transaction().add(
+    ...buildFundTreasuryInstructions({
+      owner: creator.publicKey,
+      agentId: agent.id,
+      agentSigner: new PublicKey(agent.signerPubkey),
+      mint: mint.publicKey,
+      createAccount: true,
+      rentLamports: await conn.getMinimumBalanceForRentExemption(size),
+      depositAmount: 10_000_000_000n, // 10,000 DOGE2
+      allowance: 5_000_000_000n, // 5,000 DOGE2
+      asset: "token",
+      programId: t22,
+      decimals: 6,
+      accountSize: size,
+    }),
+  );
+  const fundTokSig = await sendAndConfirmTransaction(conn, fundTokTx, [creator]);
+  await call(`/api/agents/${agent.id}/treasury`, { signature: fundTokSig });
+  const tt2 = await call<{ onchain: { balance: string; allowance: string; delegatedToAgent: boolean } }>(`/api/agents/${agent.id}/treasury?asset=token`);
+  assert(tt2.onchain.balance === "10000" && tt2.onchain.allowance === "5000" && tt2.onchain.delegatedToAgent, `token treasury holds 10,000 $DOGE2, 5,000 delegated: ${explorer(fundTokSig)}`);
+  const tokPay = await call<{ payment: { status: string; signature: string; error: string | null; unit: string } }>(`/api/agents/${agent.id}/payments`, {
+    recipient: contributors[1].publicKey.toBase58(),
+    amount: "1000",
+    category: "community_rewards",
+    reason: "Token reward",
+    idempotencyKey: crypto.randomUUID(),
+    asset: "token",
+  });
+  assert(tokPay.payment.status === "confirmed" && tokPay.payment.unit === "$DOGE2", `1,000 $DOGE2 paid on-chain: ${explorer(tokPay.payment.signature)}`);
+  const recvTok = await conn.getTokenAccountBalance(getAssociatedTokenAddressSync(mint.publicKey, contributors[1].publicKey, false, t22));
+  assert(recvTok.value.uiAmountString === "1000", "recipient holds 1,000 $DOGE2 (read from Solana)");
+  const overTok = await call<{ payment: { status: string } }>(`/api/agents/${agent.id}/payments`, {
+    recipient: contributors[2].publicKey.toBase58(),
+    amount: "2000",
+    category: "community_rewards",
+    reason: "too much",
+    idempotencyKey: crypto.randomUUID(),
+    asset: "token",
+  });
+  assert(overTok.payment.status === "rejected", "2,000 $DOGE2 > token max per payment → rejected");
+  const usdcStill = await call<{ onchain: { balance: string } }>(`/api/agents/${agent.id}/treasury`);
+  assert(usdcStill.onchain.balance === "85", "USDC treasury untouched by token payments (still 85)");
 
   console.log("\n\x1b[32mE2E PASSED\x1b[0m. Agent console:", `${BASE}/console/${agent.id}`);
 }

@@ -12,6 +12,8 @@ export type Payment = {
   id: string;
   recipient: string;
   amount: string;
+  unit?: string;
+  asset?: "usdc" | "token";
   category: string;
   campaign: string;
   reason: string;
@@ -26,6 +28,12 @@ export type Payment = {
 };
 export type Contributor = { id: string; wallet: string; handle: string; role: string; status: string; activityScore: number; note?: string };
 export type TreasuryState = {
+  asset: "usdc" | "token";
+  unit: string;
+  symbol: string;
+  decimals: number;
+  tokenProgram: string;
+  enabled: boolean;
   address: string;
   owner: string;
   mint: string;
@@ -80,7 +88,7 @@ export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; on
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-mono text-base font-semibold">
-                    {p.amount} <span className="text-xs text-muted">{usdcLabel}</span>
+                    {p.amount} <span className="text-xs text-muted">{p.unit ?? usdcLabel}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     to <AddressLink address={p.recipient} /> · {timeAgo(p.createdAt)}
@@ -132,7 +140,7 @@ export function PaymentsTable({ payments, onChange }: { payments: Payment[]; onC
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-semibold">
-                  {p.amount} {usdcLabel}
+                  {p.amount} {p.unit ?? usdcLabel}
                 </span>
                 <PaymentStatus status={p.status} />
                 {p.source === "creator" && <Badge>manual</Badge>}
@@ -180,8 +188,21 @@ export function PaymentsTable({ payments, onChange }: { payments: Payment[]; onC
   );
 }
 
-export function ManualPayment({ agentId, contributors, categories, onDone }: { agentId: string; contributors: Contributor[]; categories: string[]; onDone: () => void }) {
-  const [f, setF] = useState({ recipient: "", amount: "1", category: categories[0] ?? "community_rewards", reason: "" });
+export function ManualPayment({
+  agentId,
+  contributors,
+  categories,
+  onDone,
+  tokenSymbol,
+}: {
+  agentId: string;
+  contributors: Contributor[];
+  categories: string[];
+  onDone: () => void;
+  /** Set when token rewards are enabled: allows paying in the agent's own token. */
+  tokenSymbol?: string | null;
+}) {
+  const [f, setF] = useState({ recipient: "", amount: "1", category: categories[0] ?? "community_rewards", reason: "", asset: "usdc" as "usdc" | "token" });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Payment | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -213,8 +234,22 @@ export function ManualPayment({ agentId, contributors, categories, onDone }: { a
         </Select>
       </Field>
       <Input placeholder="…or paste any wallet address" value={f.recipient} onChange={(e) => setF({ ...f, recipient: e.target.value.trim() })} />
+      {tokenSymbol && (
+        <div className="flex gap-1 rounded-xl border border-line bg-panel-2 p-1">
+          {(["usdc", "token"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => setF({ ...f, asset: a })}
+              className={cn("flex-1 rounded-lg px-3 py-1.5 text-xs font-medium", f.asset === a ? "bg-panel-3 text-text" : "text-muted")}
+            >
+              Pay in {a === "usdc" ? usdcLabel : `$${tokenSymbol}`}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
-        <Field label={`Amount (${usdcLabel})`}>
+        <Field label={`Amount (${f.asset === "usdc" ? usdcLabel : `$${tokenSymbol}`})`}>
           <Input inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
         </Field>
         <Field label="Category">

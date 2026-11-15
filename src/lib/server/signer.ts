@@ -59,6 +59,8 @@ export async function signAgentPayment(args: {
   recipient: string;
   amount: bigint;
   recentBlockhash: string;
+  tokenProgram: string;
+  decimals: number;
 }): Promise<{ tx: Transaction; signature: string }> {
   const feePayer = getFeePayer();
   const agentKp = await loadAgentKeypair(args.agentId, args.agentSignerPubkey);
@@ -72,6 +74,8 @@ export async function signAgentPayment(args: {
       recipient: new PublicKey(args.recipient),
       amount: args.amount,
       recentBlockhash: args.recentBlockhash,
+      programId: new PublicKey(args.tokenProgram),
+      decimals: args.decimals,
     });
     tx.sign(feePayer, agentKp);
     const sig = tx.signature;
@@ -80,5 +84,64 @@ export async function signAgentPayment(args: {
     return { tx, signature: bs58.encode(sig) };
   } finally {
     agentKp.secretKey.fill(0);
+  }
+}
+
+// ───────────────────────────── trading wallet (mainnet) ─────────────────────────────
+// In autonomous trading mode the agent's key also acts as its own small mainnet
+// trading wallet, funded with SOL by the creator. These two functions are the only
+// other things the key can sign, and both are tightly constrained.
+
+/**
+ * Signs a pump.fun trade AFTER the trading engine validated it and checked the simulated
+ * SOL spend. Re-validates here too (signer set + program allowlist) as defense in depth.
+ */
+export async function signAgentTrade(agentId: string, agentSignerPubkey: string, tx: import("@solana/web3.js").VersionedTransaction) {
+  const { validateTradeTransaction } = await import("./pumpfun");
+  validateTradeTransaction(tx, agentSignerPubkey);
+  const kp = await loadAgentKeypair(agentId, agentSignerPubkey);
+  try {
+    tx.sign([kp]);
+    return tx;
+  } finally {
+    kp.secretKey.fill(0);
+  }
+}
+
+/**
+ * Withdraws everything from the agent's trading wallet to the CREATOR (fixed destination):
+ * every token balance, then all SOL minus the network fee.
+ */
+export async function signTradingWalletWithdrawal(args: {
+  agentId: string;
+  agentSignerPubkey: string;
+  creatorWallet: string;
+  recentBlockhash: string;
+  tokens: { mint: string; programId: string; amount: bigint; decimals: number; account: string }[];
+  lamportsToSend: bigint;
+}) {
+  const { SystemProgram } = await import("@solana/web3.js");
+  const spl = await import("@solana/spl-token");
+  const kp = await loadAgentKeypair(args.agentId, args.agentSignerPubkey);
+  try {
+    const creator = new PublicKey(args.creatorWallet);
+    const tx = new Transaction({ feePayer: kp.publicKey, recentBlockhash: args.recentBlockhash });
+    for (const t of args.tokens) {
+      const program = new PublicKey(t.programId);
+      const mint = new PublicKey(t.mint);
+      const dest = spl.getAssociatedTokenAddressSync(mint, creator, false, program);
+      tx.add(
+        spl.createAssociatedTokenAccountIdempotentInstruction(kp.publicKey, dest, creator, mint, program),
+        spl.createTransferCheckedInstruction(new PublicKey(t.account), mint, dest, kp.publicKey, t.amount, t.decimals, [], program),
+      );
+    }
+    if (args.lamportsToSend > 0n) {
+      tx.add(SystemProgram.transfer({ fromPubkey: kp.publicKey, toPubkey: creator, lamports: args.lamportsToSend }));
+    }
+    if (!tx.instructions.length) throw new Error("Nothing to withdraw");
+    tx.sign(kp);
+    return tx;
+  } finally {
+    kp.secretKey.fill(0);
   }
 }

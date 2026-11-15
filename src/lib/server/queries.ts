@@ -58,6 +58,20 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
       categories: a.categories,
       recipientPolicy: a.recipientPolicy,
     },
+    tokenPolicy:
+      a.tokenDailyLimit !== null
+        ? {
+            maxPerTx: fromBaseUnits(a.tokenMaxPerTx ?? 0n, 6),
+            autoApproveLimit: fromBaseUnits(a.tokenAutoApproveLimit ?? 0n, 6),
+            dailyLimit: fromBaseUnits(a.tokenDailyLimit, 6),
+          }
+        : null,
+    trading: {
+      mode: a.tradingMode,
+      maxSolPerTrade: fromBaseUnits(a.tradeMaxSol, 9),
+      dailySol: fromBaseUnits(a.tradeDailySol, 9),
+      mints: a.tradeMints,
+    },
     treasury: treasury
       ? {
           address: treasury.address,
@@ -86,7 +100,9 @@ export function paymentPublicView(p: Payment) {
   return {
     id: p.id,
     recipient: p.recipient,
-    amount: usd(p.amount),
+    amount: fromBaseUnits(p.amount, p.decimals),
+    asset: p.asset,
+    unit: p.asset === "usdc" ? "USDC" : `$${p.symbol}`,
     mint: p.mint,
     category: p.category,
     campaign: p.campaign,
@@ -118,7 +134,7 @@ export async function agentStats(agentIds: string[]): Promise<Map<string, AgentS
     .select({
       agentId: schema.payments.agentId,
       confirmed: sql<number>`count(*) filter (where ${schema.payments.status} = 'confirmed')::int`,
-      volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed'), 0)::text`,
+      volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed' and ${schema.payments.asset} = 'usdc'), 0)::text`,
       pending: sql<number>`count(*) filter (where ${schema.payments.status} = 'awaiting_approval')::int`,
       instructions: sql<number>`count(distinct ${schema.payments.instructionId}) filter (where ${schema.payments.status} = 'confirmed')::int`,
     })
@@ -150,7 +166,7 @@ export async function listAgents(opts: { sort?: string; creator?: string; limit?
   const rows = await db
     .select({ agent: schema.agents, treasury: schema.treasuries, token: schema.tokens })
     .from(schema.agents)
-    .leftJoin(schema.treasuries, eq(schema.treasuries.agentId, schema.agents.id))
+    .leftJoin(schema.treasuries, and(eq(schema.treasuries.agentId, schema.agents.id), eq(schema.treasuries.asset, "usdc")))
     .innerJoin(schema.tokens, eq(schema.tokens.id, schema.agents.tokenId))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(schema.agents.createdAt))
@@ -237,7 +253,7 @@ export async function platformStats() {
   const [payments] = await db
     .select({
       n: sql<number>`count(*) filter (where ${schema.payments.status} = 'confirmed')::int`,
-      volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed'), 0)::text`,
+      volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed' and ${schema.payments.asset} = 'usdc'), 0)::text`,
       failed: sql<number>`count(*) filter (where ${schema.payments.status} = 'failed')::int`,
     })
     .from(schema.payments);
@@ -246,7 +262,8 @@ export async function platformStats() {
       managed: sql<string>`coalesce(sum(${schema.treasuries.lastBalance}), 0)::text`,
       deposits: sql<string>`coalesce(sum(${schema.treasuries.totalDeposits}), 0)::text`,
     })
-    .from(schema.treasuries);
+    .from(schema.treasuries)
+    .where(eq(schema.treasuries.asset, "usdc"));
   const [users] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.users);
   return {
     tokensLaunched: tokens.n,

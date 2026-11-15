@@ -4,7 +4,6 @@
  */
 import { PublicKey } from "@solana/web3.js";
 import { fromBaseUnits } from "../../shared/amounts";
-import { USDC_DECIMALS } from "../../shared/config";
 import type { PolicyCheck, PolicyRecord } from "../db/schema";
 
 export type AgentPolicy = {
@@ -18,6 +17,8 @@ export type AgentPolicy = {
   signerPubkey: string;
   treasuryAddress: string;
   creatorWallet: string;
+  /** Asset the limits are denominated in (USDC by default). */
+  unit?: { symbol: string; decimals: number };
 };
 
 export type PolicyContext = {
@@ -48,7 +49,8 @@ export function evaluatePayment(
   opts: { skipApprovalGate?: boolean } = {},
 ): PolicyRecord {
   const checks: PolicyCheck[] = [];
-  const usd = (v: bigint) => `${fromBaseUnits(v, USDC_DECIMALS)} USDC`;
+  const unit = agent.unit ?? { symbol: "USDC", decimals: 6 };
+  const usd = (v: bigint) => `${fromBaseUnits(v, unit.decimals)} ${unit.symbol}`;
   const add = (c: PolicyCheck) => checks.push(c);
 
   add({
@@ -63,6 +65,13 @@ export function evaluatePayment(
     label: "Agent active",
     passed: agent.status === "active",
     detail: agent.status === "active" ? "Agent is active" : "Agent is paused",
+    effect: "reject",
+  });
+  add({
+    id: "asset_enabled",
+    label: `${unit.symbol} payments enabled`,
+    passed: agent.dailyLimit > 0n && agent.maxPerTx > 0n,
+    detail: agent.dailyLimit > 0n && agent.maxPerTx > 0n ? `Creator allows ${unit.symbol} payments` : `The creator has not enabled payments in ${unit.symbol}`,
     effect: "reject",
   });
   add({

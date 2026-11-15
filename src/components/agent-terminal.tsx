@@ -10,6 +10,7 @@ type PaymentView = {
   id: string;
   recipient: string;
   amount: string;
+  unit?: string;
   reason: string;
   status: string;
   signature: string | null;
@@ -81,7 +82,7 @@ export function PaymentChip({ p }: { p: PaymentView }) {
           <span className="truncate">{c.label}</span>
         </div>
         <div className="shrink-0 font-mono text-sm font-semibold">
-          {p.amount} <span className="text-xs text-muted">{usdcLabel}</span>
+          {p.amount} <span className="text-xs text-muted">{p.unit ?? usdcLabel}</span>
         </div>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">

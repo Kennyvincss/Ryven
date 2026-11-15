@@ -2,12 +2,13 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Activity, ArrowUpRight, Pause, Play, Settings, Users, Wallet, Coins, Send } from "lucide-react";
+import { Activity, ArrowUpRight, CandlestickChart, Pause, Play, Settings, Users, Wallet, Coins, Send } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
 import { useSession } from "@/lib/client/session";
 import { usdcLabel } from "@/lib/shared/config";
 import { AgentTerminal } from "@/components/agent-terminal";
+import { TokenRewardSettings, TradingPanel, TradingSettings } from "@/components/trading-panel";
 import {
   ActivityFeed,
   ApprovalsPanel,
@@ -39,6 +40,8 @@ type AgentResp = {
     creatorWallet: string;
     signerPubkey: string;
     policy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string; categories: string[]; recipientPolicy: "allowlist_only" | "allowlist_or_approval" };
+    tokenPolicy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
+    trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] };
     treasury: { address: string; mint: string } | null;
   };
   private: { instructions: string } | null;
@@ -51,9 +54,10 @@ type AgentResp = {
 function Console({ id }: { id: string }) {
   const config = useAppConfig();
   const agentQ = useApi<AgentResp>(`/api/agents/${id}`);
-  const treasuryQ = useApi<TreasuryState>(`/api/agents/${id}/treasury`, { refreshMs: 15000 });
+  const [asset, setAsset] = useState<"usdc" | "token">("usdc");
+  const treasuryQ = useApi<TreasuryState>(`/api/agents/${id}/treasury?asset=${asset}`, { refreshMs: 15000 });
   const actQ = useApi<{ activities: ActivityItem[] }>(`/api/agents/${id}/activities`, { refreshMs: 6000 });
-  const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "settings">("payments");
+  const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "trading" | "settings">("payments");
   const [showFund, setShowFund] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -138,22 +142,52 @@ function Console({ id }: { id: string }) {
                 { id: "payments", label: <span className="flex items-center gap-1.5"><Coins className="size-3.5" />Payments</span> },
                 { id: "contributors", label: <span className="flex items-center gap-1.5"><Users className="size-3.5" />Contributors ({d.contributors.length})</span> },
                 { id: "manual", label: <span className="flex items-center gap-1.5"><Send className="size-3.5" />Manual payment</span> },
+                { id: "trading", label: <span className="flex items-center gap-1.5"><CandlestickChart className="size-3.5" />Trading</span> },
                 { id: "settings", label: <span className="flex items-center gap-1.5"><Settings className="size-3.5" />Permissions</span> },
               ]}
             />
             <div className="border-t border-line">
               {tab === "payments" && <PaymentsTable payments={d.payments} onChange={refreshAll} />}
               {tab === "contributors" && <ContributorsPanel agentId={id} contributors={d.contributors} onChange={refreshAll} editable />}
-              {tab === "manual" && <ManualPayment agentId={id} contributors={d.contributors.filter((c) => c.status === "approved")} categories={a.policy.categories} onDone={refreshAll} />}
-              {tab === "settings" && <SettingsPanel agent={a} instructions={d.private?.instructions ?? ""} onSaved={refreshAll} />}
+              {tab === "manual" && (
+                <ManualPayment
+                  agentId={id}
+                  contributors={d.contributors.filter((c) => c.status === "approved")}
+                  categories={a.policy.categories}
+                  onDone={refreshAll}
+                  tokenSymbol={a.tokenPolicy ? (d.token?.symbol ?? null) : null}
+                />
+              )}
+              {tab === "trading" && <TradingPanel agentId={id} />}
+              {tab === "settings" && (
+                <>
+                  <SettingsPanel agent={a} instructions={d.private?.instructions ?? ""} onSaved={refreshAll} />
+                  <TokenRewardSettings agentId={id} symbol={d.token?.symbol ?? "TOKEN"} value={a.tokenPolicy} onSaved={refreshAll} />
+                  <TradingSettings agentId={id} value={a.trading} onSaved={refreshAll} />
+                </>
+              )}
             </div>
           </Card>
         </div>
 
         <div className="space-y-5">
           <Card>
+            <div className="flex gap-1 px-4 pt-3">
+              {(["usdc", "token"] as const).map((a) => (
+                <button
+                  key={a}
+                  onClick={() => {
+                    setAsset(a);
+                    setShowFund(false);
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${asset === a ? "bg-panel-3 text-text" : "text-muted hover:text-text"}`}
+                >
+                  {a === "usdc" ? usdcLabel : `$${d.token?.symbol ?? "TOKEN"} rewards`}
+                </button>
+              ))}
+            </div>
             <CardHeader
-              title="Treasury"
+              title={asset === "usdc" ? "Treasury" : `$${d.token?.symbol ?? ""} rewards treasury`}
               subtitle={t ? <AddressLink address={t.address} /> : "Reading from Solana…"}
               icon={<Wallet className="size-4" />}
               right={
@@ -167,12 +201,17 @@ function Console({ id }: { id: string }) {
                 <Spinner />
               ) : (
                 <>
+                  {t.asset === "token" && !t.enabled && (
+                    <Alert tone="info" title={`Rewards in ${t.unit} are off`}>
+                      Enable them under Permissions (set token limits), then fund this treasury with {t.unit} and give the agent an allowance.
+                    </Alert>
+                  )}
                   {!t.onchain.exists && <Alert tone="warn" title="Treasury not created yet">Fund it to create the account and give the agent an allowance.</Alert>}
                   {t.onchain.exists && !t.onchain.delegatedToAgent && (
                     <Alert tone="warn" title="No spending authority">The agent has no on-chain allowance (never set or revoked). Payments will be rejected.</Alert>
                   )}
                   <div className="grid grid-cols-2 gap-4">
-                    <Stat label="Balance (on-chain)" value={`${Number(t.onchain.balance).toLocaleString()}`} hint={usdcLabel} accent />
+                    <Stat label="Balance (on-chain)" value={`${Number(t.onchain.balance).toLocaleString()}`} hint={t.unit} accent />
                     <Stat label="Agent allowance" value={Number(t.onchain.allowance).toLocaleString()} hint="enforced by Solana" />
                     <Stat label="Remaining today" value={Number(t.budget.remainingToday).toLocaleString()} hint={`of ${t.budget.dailyLimit} daily`} />
                     <Stat label="Max per payment" value={t.budget.maxPerTx} hint={`auto ≤ ${t.budget.autoApproveLimit}`} />
@@ -188,10 +227,10 @@ function Console({ id }: { id: string }) {
               )}
               {showFund && (
                 <div className="border-t border-line pt-4">
-                  <FundTreasury agent={agentRef} compact onDone={() => { setShowFund(false); refreshAll(); }} />
+                  <FundTreasury key={asset} agent={agentRef} spec={t ? { asset: t.asset, address: t.address, mint: t.mint, tokenProgram: t.tokenProgram, decimals: t.decimals, unit: t.unit } : undefined} compact onDone={() => { setShowFund(false); refreshAll(); }} />
                   <div className="mt-5 border-t border-line pt-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Owner controls</div>
-                    <TreasuryOwnerActions agent={agentRef} balance={t?.onchain.balance ?? "0"} onDone={refreshAll} />
+                    <TreasuryOwnerActions key={asset} agent={agentRef} spec={t ? { asset: t.asset, address: t.address, mint: t.mint, tokenProgram: t.tokenProgram, decimals: t.decimals, unit: t.unit } : undefined} balance={t?.onchain.balance ?? "0"} onDone={refreshAll} />
                   </div>
                 </div>
               )}

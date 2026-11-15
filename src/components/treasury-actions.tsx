@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { ACCOUNT_SIZE } from "@solana/spl-token";
+import { ACCOUNT_SIZE, TOKEN_PROGRAM_ID, getAccountLenForMint, getMint } from "@solana/spl-token";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { ArrowDownToLine, ArrowUpFromLine, Ban, KeyRound } from "lucide-react";
 import { api } from "@/lib/client/api";
@@ -17,6 +17,15 @@ import { USDC_DECIMALS, publicConfig, usdcLabel } from "@/lib/shared/config";
 import { Alert, Button, Field, Input, TxLink } from "./ui";
 
 type AgentRef = { id: string; signerPubkey: string; creatorWallet: string; treasury: { address: string; mint: string } | null };
+
+/** Which treasury an action targets. Omitted = the agent's USDC treasury. */
+export type TreasurySpec = { asset: "usdc" | "token"; address: string; mint: string; tokenProgram: string; decimals: number; unit: string };
+
+function resolveSpec(agent: AgentRef, spec?: TreasurySpec): TreasurySpec | null {
+  if (spec) return spec;
+  if (!agent.treasury) return null;
+  return { asset: "usdc", address: agent.treasury.address, mint: agent.treasury.mint, tokenProgram: TOKEN_PROGRAM_ID.toBase58(), decimals: USDC_DECIMALS, unit: usdcLabel };
+}
 
 function useTx() {
   const wallet = useWallet();
@@ -46,45 +55,57 @@ function useTx() {
 }
 
 /** Creator: create/fund the treasury and set the agent's on-chain spending allowance. */
-export function FundTreasury({ agent, onDone, compact }: { agent: AgentRef; onDone?: () => void; compact?: boolean }) {
+export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef; onDone?: () => void; compact?: boolean; spec?: TreasurySpec }) {
   const { run, busy, error, sig, wallet, connection } = useTx();
-  const [deposit, setDeposit] = useState("100");
-  const [allowance, setAllowance] = useState("100");
+  const t = resolveSpec(agent, spec);
+  const isToken = t?.asset === "token";
+  const [deposit, setDeposit] = useState(isToken ? "10000" : "100");
+  const [allowance, setAllowance] = useState(isToken ? "10000" : "100");
   const [exists, setExists] = useState<boolean | null>(null);
   const [usdcBal, setUsdcBal] = useState<string | null>(null);
   const isOwner = wallet.publicKey?.toBase58() === agent.creatorWallet;
 
+  const tAddress = t?.address;
+  const tMint = t?.mint;
   useEffect(() => {
-    if (!agent.treasury) return;
-    connection.getAccountInfo(new PublicKey(agent.treasury.address)).then((a) => setExists(!!a)).catch(() => setExists(null));
+    if (!tAddress || !tMint) return;
+    connection.getAccountInfo(new PublicKey(tAddress)).then((a) => setExists(!!a)).catch(() => setExists(null));
     if (wallet.publicKey) {
       connection
-        .getParsedTokenAccountsByOwner(wallet.publicKey, { mint: new PublicKey(agent.treasury.mint) })
+        .getParsedTokenAccountsByOwner(wallet.publicKey, { mint: new PublicKey(tMint) })
         .then((r) => {
           // Exclude the treasury itself (the creator owns it too).
-          const accs = r.value.filter((a) => a.pubkey.toBase58() !== agent.treasury!.address);
+          const accs = r.value.filter((a) => a.pubkey.toBase58() !== tAddress);
           setUsdcBal(accs.reduce((s, a) => s + Number(a.account.data.parsed.info.tokenAmount.uiAmountString), 0).toString());
         })
         .catch(() => setUsdcBal(null));
     }
-  }, [agent.treasury, connection, wallet.publicKey, sig]);
+  }, [tAddress, tMint, connection, wallet.publicKey, sig]);
 
-  if (!agent.treasury) return <Alert tone="danger">This agent has no treasury record.</Alert>;
+  if (!t) return <Alert tone="danger">This agent has no treasury record.</Alert>;
   if (!isOwner) return <Alert tone="warn">Connect the creator wallet to fund this treasury.</Alert>;
 
   const submit = () =>
     run(agent.id, async () => {
       const owner = wallet.publicKey!;
-      const rent = await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE);
+      const programId = new PublicKey(t.tokenProgram);
+      const mint = new PublicKey(t.mint);
+      // Token-2022 accounts may need extra space for the mint's account extensions.
+      const size = programId.equals(TOKEN_PROGRAM_ID) ? ACCOUNT_SIZE : getAccountLenForMint(await getMint(connection, mint, "confirmed", programId));
+      const rent = await connection.getMinimumBalanceForRentExemption(size);
       const ixs = buildFundTreasuryInstructions({
         owner,
         agentId: agent.id,
         agentSigner: new PublicKey(agent.signerPubkey),
-        mint: new PublicKey(agent.treasury!.mint),
+        mint,
         createAccount: exists === false,
         rentLamports: rent,
-        depositAmount: deposit ? toBaseUnits(deposit, USDC_DECIMALS) : 0n,
-        allowance: allowance !== "" ? toBaseUnits(allowance, USDC_DECIMALS) : null,
+        depositAmount: deposit ? toBaseUnits(deposit, t.decimals) : 0n,
+        allowance: allowance !== "" ? toBaseUnits(allowance, t.decimals) : null,
+        asset: t.asset,
+        programId,
+        decimals: t.decimals,
+        accountSize: size,
       });
       if (!ixs.length) throw new Error("Nothing to do");
       return new Transaction().add(...ixs);
@@ -94,20 +115,21 @@ export function FundTreasury({ agent, onDone, compact }: { agent: AgentRef; onDo
     <div className="space-y-4">
       {!compact && (
         <div className="rounded-xl border border-line bg-panel-2 p-4 text-[13px] leading-relaxed text-muted">
-          Your wallet signs one transaction that {exists === false ? "creates a treasury account you own, " : ""}deposits {usdcLabel} into it and
+          Your wallet signs one transaction that {exists === false ? "creates a treasury account you own, " : ""}deposits {t.unit} into it and
           sets the agent&apos;s <span className="text-text">on-chain allowance</span>. The agent can never spend more than the allowance, and you can
           revoke it or withdraw at any time.
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={`Deposit (${usdcLabel})`} hint={usdcBal !== null ? `wallet: ${usdcBal}` : undefined}>
+        <Field label={`Deposit (${t.unit})`} hint={usdcBal !== null ? `wallet: ${usdcBal}` : undefined}>
           <Input inputMode="decimal" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
         </Field>
         <Field label="Agent spending allowance" hint="total, on-chain">
           <Input inputMode="decimal" value={allowance} onChange={(e) => setAllowance(e.target.value)} placeholder="leave empty to keep" />
         </Field>
       </div>
-      {usdcBal === "0" && (
+      {usdcBal === "0" && isToken && <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>Connect the wallet that holds the token supply.</Alert>}
+      {usdcBal === "0" && !isToken && (
         <Alert tone="warn" title={`You have no ${usdcLabel}`}>
           {publicConfig.usdcMint === "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" ? (
             <>
@@ -136,10 +158,12 @@ export function FundTreasury({ agent, onDone, compact }: { agent: AgentRef; onDo
 }
 
 /** Creator-only advanced actions: revoke (on-chain kill switch) and withdraw. */
-export function TreasuryOwnerActions({ agent, balance, onDone }: { agent: AgentRef; balance: string; onDone?: () => void }) {
+export function TreasuryOwnerActions({ agent, balance, onDone, spec }: { agent: AgentRef; balance: string; onDone?: () => void; spec?: TreasurySpec }) {
   const { run, busy, error, sig, wallet } = useTx();
   const [amount, setAmount] = useState("");
-  if (wallet.publicKey?.toBase58() !== agent.creatorWallet || !agent.treasury) return null;
+  const t = resolveSpec(agent, spec);
+  if (wallet.publicKey?.toBase58() !== agent.creatorWallet || !t) return null;
+  const programId = new PublicKey(t.tokenProgram);
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
@@ -150,7 +174,7 @@ export function TreasuryOwnerActions({ agent, balance, onDone }: { agent: AgentR
           onClick={() =>
             run(agent.id, async () =>
               new Transaction().add(
-                ...buildWithdrawInstructions(wallet.publicKey!, agent.id, new PublicKey(agent.treasury!.mint), toBaseUnits(amount || balance, USDC_DECIMALS)),
+                ...buildWithdrawInstructions(wallet.publicKey!, agent.id, new PublicKey(t.mint), toBaseUnits(amount || balance, t.decimals), t.asset, programId, t.decimals),
               ),
             ).then((s) => s && onDone?.())
           }
@@ -162,7 +186,7 @@ export function TreasuryOwnerActions({ agent, balance, onDone }: { agent: AgentR
         variant="danger"
         className="w-full"
         loading={busy}
-        onClick={() => run(agent.id, async () => new Transaction().add(...buildRevokeInstructions(wallet.publicKey!, agent.id))).then((s) => s && onDone?.())}
+        onClick={() => run(agent.id, async () => new Transaction().add(...buildRevokeInstructions(wallet.publicKey!, agent.id, t.asset, programId))).then((s) => s && onDone?.())}
       >
         <Ban className="size-4" /> Revoke agent allowance on-chain
       </Button>

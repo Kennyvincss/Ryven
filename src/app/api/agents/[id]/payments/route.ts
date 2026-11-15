@@ -4,7 +4,7 @@ import { executePayment, proposePayments } from "@/lib/server/engine/payments";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { paymentPublicView } from "@/lib/server/queries";
 import { toBaseUnits } from "@/lib/shared/amounts";
-import { PAYMENT_CATEGORY_IDS, USDC_DECIMALS } from "@/lib/shared/config";
+import { LAUNCH_TOKEN_DECIMALS, PAYMENT_CATEGORY_IDS, USDC_DECIMALS } from "@/lib/shared/config";
 
 const Body = z.object({
   recipient: z.string().min(32).max(44),
@@ -13,6 +13,7 @@ const Body = z.object({
   reason: z.string().trim().min(3).max(300),
   /** Client-generated UUID so double-submits can never create two payments. */
   idempotencyKey: z.uuid(),
+  asset: z.enum(["usdc", "token"]).default("usdc"),
 });
 
 /** Manual payment by the creator. Goes through exactly the same policy engine as the AI. */
@@ -25,7 +26,8 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
     agentId: id,
     instructionId: `manual:${b.idempotencyKey}`,
     source: "creator",
-    items: [{ recipient: b.recipient.trim(), amount: toBaseUnits(b.amount, USDC_DECIMALS), category: b.category, reason: b.reason, campaign: "Manual payment" }],
+    asset: b.asset,
+    items: [{ recipient: b.recipient.trim(), amount: toBaseUnits(b.amount, b.asset === "usdc" ? USDC_DECIMALS : LAUNCH_TOKEN_DECIMALS), category: b.category, reason: b.reason, campaign: "Manual payment" }],
   });
   const p = r.payment.status === "approved" ? await executePayment(r.payment.id) : r.payment;
   return json({ payment: paymentPublicView(p), duplicate: r.duplicate });

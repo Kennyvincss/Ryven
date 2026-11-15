@@ -2,10 +2,13 @@
  * Delegated-treasury transaction builders (isomorphic: used by the browser to build
  * creator-signed transactions, and by the server/tests to verify them).
  *
- * Treasury = a classic SPL Token account for the payment mint, created with
- * `createAccountWithSeed(base = creator)` and OWNED BY THE CREATOR. The agent's signer
- * key is only a *delegate* with a capped allowance (`delegated_amount`), which the
- * SPL Token program enforces on-chain.
+ * A treasury is a token account created with `createAccountWithSeed(base = creator)` and
+ * OWNED BY THE CREATOR. The agent's signer key is only a *delegate* with a capped
+ * allowance (`delegated_amount`), which the token program enforces on-chain.
+ *
+ * Each agent can have two treasuries:
+ *   - "usdc":  classic SPL Token account for the payment mint (USDC)
+ *   - "token": account for the agent's own launched token (Token-2022), for token rewards
  */
 import {
   ACCOUNT_SIZE,
@@ -21,14 +24,24 @@ import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.j
 import { sha256 } from "@noble/hashes/sha2.js";
 import { USDC_DECIMALS } from "../shared/config";
 
-/** Seed is ≤ 32 chars: "ryv" + first 29 hex chars of the agent UUID. */
-export function treasurySeed(agentId: string): string {
-  return ("ryv" + agentId.replace(/-/g, "")).slice(0, 32);
+export type TreasuryAsset = "usdc" | "token";
+
+/** Describes which token a treasury holds. Defaults describe the USDC treasury. */
+export type TreasuryToken = {
+  asset: TreasuryAsset;
+  mint: PublicKey;
+  programId: PublicKey;
+  decimals: number;
+};
+
+/** Seed is ≤ 32 chars: "ryv"/"ryt" + first 29 hex chars of the agent UUID. */
+export function treasurySeed(agentId: string, asset: TreasuryAsset = "usdc"): string {
+  return ((asset === "usdc" ? "ryv" : "ryt") + agentId.replace(/-/g, "")).slice(0, 32);
 }
 
-export function deriveTreasuryAddress(owner: PublicKey, agentId: string): PublicKey {
+export function deriveTreasuryAddress(owner: PublicKey, agentId: string, asset: TreasuryAsset = "usdc", programId: PublicKey = TOKEN_PROGRAM_ID): PublicKey {
   // Same derivation as PublicKey.createWithSeed (sha256(base || seed || programId)), but synchronous.
-  return createWithSeedSync(owner, treasurySeed(agentId), TOKEN_PROGRAM_ID);
+  return createWithSeedSync(owner, treasurySeed(agentId, asset), programId);
 }
 
 export function createWithSeedSync(base: PublicKey, seed: string, programId: PublicKey): PublicKey {
@@ -48,11 +61,19 @@ export type FundTreasuryParams = {
   depositAmount: bigint;
   /** If set, (re)sets the agent's on-chain allowance to exactly this amount. */
   allowance: bigint | null;
+  /** Token treasury options (defaults = USDC treasury on classic SPL Token). */
+  asset?: TreasuryAsset;
+  programId?: PublicKey;
+  decimals?: number;
+  accountSize?: number;
 };
 
 export function buildFundTreasuryInstructions(p: FundTreasuryParams): TransactionInstruction[] {
-  const seed = treasurySeed(p.agentId);
-  const treasury = deriveTreasuryAddress(p.owner, p.agentId);
+  const asset = p.asset ?? "usdc";
+  const programId = p.programId ?? TOKEN_PROGRAM_ID;
+  const decimals = p.decimals ?? USDC_DECIMALS;
+  const seed = treasurySeed(p.agentId, asset);
+  const treasury = deriveTreasuryAddress(p.owner, p.agentId, asset, programId);
   const ixs: TransactionInstruction[] = [];
   if (p.createAccount) {
     ixs.push(
@@ -62,51 +83,53 @@ export function buildFundTreasuryInstructions(p: FundTreasuryParams): Transactio
         seed,
         newAccountPubkey: treasury,
         lamports: p.rentLamports,
-        space: ACCOUNT_SIZE,
-        programId: TOKEN_PROGRAM_ID,
+        space: p.accountSize ?? ACCOUNT_SIZE,
+        programId,
       }),
-      createInitializeAccount3Instruction(treasury, p.mint, p.owner, TOKEN_PROGRAM_ID),
+      createInitializeAccount3Instruction(treasury, p.mint, p.owner, programId),
     );
   }
   if (p.depositAmount > 0n) {
-    const ownerAta = getAssociatedTokenAddressSync(p.mint, p.owner, false, TOKEN_PROGRAM_ID);
-    ixs.push(
-      createTransferCheckedInstruction(ownerAta, p.mint, treasury, p.owner, p.depositAmount, USDC_DECIMALS, [], TOKEN_PROGRAM_ID),
-    );
+    const ownerAta = getAssociatedTokenAddressSync(p.mint, p.owner, false, programId);
+    ixs.push(createTransferCheckedInstruction(ownerAta, p.mint, treasury, p.owner, p.depositAmount, decimals, [], programId));
   }
   if (p.allowance !== null) {
-    ixs.push(
-      createApproveCheckedInstruction(treasury, p.mint, p.agentSigner, p.owner, p.allowance, USDC_DECIMALS, [], TOKEN_PROGRAM_ID),
-    );
+    ixs.push(createApproveCheckedInstruction(treasury, p.mint, p.agentSigner, p.owner, p.allowance, decimals, [], programId));
   }
   return ixs;
 }
 
 /** On-chain kill switch: removes the agent's delegate authority entirely. */
-export function buildRevokeInstructions(owner: PublicKey, agentId: string): TransactionInstruction[] {
-  return [createRevokeInstruction(deriveTreasuryAddress(owner, agentId), owner, [], TOKEN_PROGRAM_ID)];
+export function buildRevokeInstructions(owner: PublicKey, agentId: string, asset: TreasuryAsset = "usdc", programId: PublicKey = TOKEN_PROGRAM_ID): TransactionInstruction[] {
+  return [createRevokeInstruction(deriveTreasuryAddress(owner, agentId, asset, programId), owner, [], programId)];
 }
 
 /** Owner withdraws funds from the treasury back to their own wallet. */
-export function buildWithdrawInstructions(owner: PublicKey, agentId: string, mint: PublicKey, amount: bigint) {
-  const ownerAta = getAssociatedTokenAddressSync(mint, owner, false, TOKEN_PROGRAM_ID);
+export function buildWithdrawInstructions(
+  owner: PublicKey,
+  agentId: string,
+  mint: PublicKey,
+  amount: bigint,
+  asset: TreasuryAsset = "usdc",
+  programId: PublicKey = TOKEN_PROGRAM_ID,
+  decimals: number = USDC_DECIMALS,
+) {
+  const ownerAta = getAssociatedTokenAddressSync(mint, owner, false, programId);
   return [
-    createAssociatedTokenAccountIdempotentInstruction(owner, ownerAta, owner, mint, TOKEN_PROGRAM_ID),
-    createTransferCheckedInstruction(
-      deriveTreasuryAddress(owner, agentId),
-      mint,
-      ownerAta,
-      owner,
-      amount,
-      USDC_DECIMALS,
-      [],
-      TOKEN_PROGRAM_ID,
-    ),
+    createAssociatedTokenAccountIdempotentInstruction(owner, ownerAta, owner, mint, programId),
+    createTransferCheckedInstruction(deriveTreasuryAddress(owner, agentId, asset, programId), mint, ownerAta, owner, amount, decimals, [], programId),
   ];
 }
 
 /** Anyone (community, sponsors) can deposit into a treasury. */
-export function buildDepositInstructions(from: PublicKey, treasury: PublicKey, mint: PublicKey, amount: bigint) {
-  const fromAta = getAssociatedTokenAddressSync(mint, from, false, TOKEN_PROGRAM_ID);
-  return [createTransferCheckedInstruction(fromAta, mint, treasury, from, amount, USDC_DECIMALS, [], TOKEN_PROGRAM_ID)];
+export function buildDepositInstructions(
+  from: PublicKey,
+  treasury: PublicKey,
+  mint: PublicKey,
+  amount: bigint,
+  programId: PublicKey = TOKEN_PROGRAM_ID,
+  decimals: number = USDC_DECIMALS,
+) {
+  const fromAta = getAssociatedTokenAddressSync(mint, from, false, programId);
+  return [createTransferCheckedInstruction(fromAta, mint, treasury, from, amount, decimals, [], programId)];
 }

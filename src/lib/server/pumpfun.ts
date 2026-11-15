@@ -94,3 +94,140 @@ export async function buildCreateTransaction(p: CreateParams): Promise<{ tx: Ver
   }
   return { tx, simulationLogs: sim.value.logs ?? [] };
 }
+
+// ───────────────────────────── trading (buy / sell) ─────────────────────────────
+
+/**
+ * Programs a PumpPortal buy/sell may call at the top level. Observed (2026-11): a buy on
+ * the pump bonding curve calls ComputeBudget, the Associated Token program and
+ * PumpPortal's router (FAdo9NCw…), which CPIs into pump.fun. The pump.fun program, the
+ * pump.fun AMM and the token/system programs are also allowed.
+ */
+export const ALLOWED_TRADE_PROGRAMS = new Set([
+  "ComputeBudget111111111111111111111111111111",
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+  "FAdo9NCw1ssek6Z6yeWzWjhLVsr8uiCwcWNUnKgzTnHe",
+  PUMP_PROGRAM_ID,
+  "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+  "11111111111111111111111111111111",
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+]);
+
+export type TradeRequest = {
+  wallet: string;
+  action: "buy" | "sell";
+  mint: string;
+  /** buy: SOL (decimal). sell: percent of holdings, 1-100. */
+  amount: number;
+};
+
+/** A trade transaction may only be signed by the trading wallet and call allowlisted programs. */
+export function validateTradeTransaction(tx: VersionedTransaction, wallet: string) {
+  const msg = tx.message;
+  if (msg.version !== 0) throw new PumpFunError("Unexpected transaction version");
+  const keys = msg.staticAccountKeys.map((k) => k.toBase58());
+  if (msg.header.numRequiredSignatures !== 1) throw new PumpFunError("Trade must require exactly one signature (the trading wallet)");
+  if (keys[0] !== wallet) throw new PumpFunError("Trade fee payer is not the trading wallet");
+  const unknown = [...new Set(msg.compiledInstructions.map((ix) => keys[ix.programIdIndex]))].filter((p) => !p || !ALLOWED_TRADE_PROGRAMS.has(p));
+  if (unknown.length) throw new PumpFunError(`Trade calls an unexpected program: ${unknown.join(", ")}`);
+}
+
+export async function buildTradeTransaction(t: TradeRequest): Promise<VersionedTransaction> {
+  new PublicKey(t.wallet);
+  new PublicKey(t.mint);
+  const res = await outboundFetch(PUMPPORTAL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      publicKey: t.wallet,
+      action: t.action,
+      mint: t.mint,
+      amount: t.action === "buy" ? t.amount : `${t.amount}%`,
+      denominatedInSol: t.action === "buy" ? "true" : "false",
+      slippage: 10,
+      priorityFee: 0.00001,
+      pool: "pump",
+    }),
+  });
+  if (res.status !== 200) {
+    const text = (await res.text()).slice(0, 200);
+    throw new PumpFunError(
+      `PumpPortal could not build the ${t.action} (${res.status} ${res.statusText})${text ? `: ${text}` : ""}. The coin may have no balance to sell, or may have left the pump.fun curve.`,
+    );
+  }
+  const tx = VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
+  validateTradeTransaction(tx, t.wallet);
+  return tx;
+}
+
+/** Fees + rent + rounding allowed on top of the trade amount (0.01 SOL). */
+const SPEND_BUFFER_LAMPORTS = 10_000_000n;
+
+/**
+ * Simulates on mainnet and measures exactly how many lamports the trading wallet would
+ * lose. Refuses if a buy would spend more than amount × (1 + slippage) + fees, or if a
+ * sell would cost more than fees. This is what stops a bad or malicious transaction.
+ */
+export async function simulateSpend(tx: VersionedTransaction, t: TradeRequest): Promise<{ spendLamports: bigint }> {
+  const conn = mainnetConnection();
+  const wallet = new PublicKey(t.wallet);
+  const pre = BigInt(await conn.getBalance(wallet, "confirmed"));
+  const sim = await conn.simulateTransaction(tx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: "confirmed",
+    accounts: { encoding: "base64", addresses: [t.wallet] },
+  });
+  if (sim.value.err) {
+    const text = JSON.stringify(sim.value.err) + " " + (sim.value.logs ?? []).join(" ");
+    if (/insufficient lamports|InsufficientFunds|AccountNotFound|no record of a prior credit/i.test(text)) {
+      throw new PumpFunError("The trading wallet doesn't have enough mainnet SOL for this trade.");
+    }
+    throw new PumpFunError(`Mainnet simulation failed: ${JSON.stringify(sim.value.err)}`);
+  }
+  const post = BigInt(sim.value.accounts?.[0]?.lamports ?? Number(pre));
+  const spend = pre - post;
+  const maxSpend =
+    t.action === "buy" ? BigInt(Math.ceil(t.amount * 1e9 * 1.1)) + SPEND_BUFFER_LAMPORTS : SPEND_BUFFER_LAMPORTS;
+  if (spend > maxSpend) {
+    throw new PumpFunError(
+      `Refused: simulation shows the wallet would lose ${Number(spend) / 1e9} SOL, more than the allowed ${Number(maxSpend) / 1e9} SOL for this ${t.action}.`,
+    );
+  }
+  return { spendLamports: spend };
+}
+
+/** Sends a signed transaction to mainnet and waits (HTTP polling) for confirmation. */
+export async function sendAndConfirmMainnet(tx: VersionedTransaction): Promise<string> {
+  const conn = mainnetConnection();
+  const bs58 = (await import("bs58")).default;
+  const signature = bs58.encode(tx.signatures[0]);
+  try {
+    await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 5 });
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (!/already been processed/i.test(msg)) {
+      if (/Blockhash not found/i.test(msg)) throw new PumpFunError("The transaction expired before it was sent. Please try again.");
+      throw new PumpFunError(`Solana rejected the transaction: ${msg.slice(0, 300)}`);
+    }
+  }
+  for (let i = 0; i < 90; i++) {
+    const st = (await conn.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
+    if (st?.err) throw new PumpFunError(`Transaction failed on-chain: ${JSON.stringify(st.err)}`);
+    if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return signature;
+    if (i % 5 === 4 && !(await conn.isBlockhashValid(tx.message.recentBlockhash, { commitment: "confirmed" })).value) {
+      const again = (await conn.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
+      if (!again) throw new PumpFunError("The transaction expired without landing (nothing was spent).");
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new PumpFunError(`Still waiting for confirmation of ${signature}.`);
+}
+
+/** Net SOL change (lamports) of the fee payer in a landed transaction. */
+export async function solDeltaOf(signature: string): Promise<bigint | null> {
+  const tx = await mainnetConnection().getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+  if (!tx?.meta) return null;
+  return BigInt(tx.meta.postBalances[0]) - BigInt(tx.meta.preBalances[0]);
+}
