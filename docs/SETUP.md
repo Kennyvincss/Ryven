@@ -181,7 +181,35 @@ npx tsx scripts/e2e-devnet.ts
 
 ---
 
-## 6. Optional: deploying the bonding-curve program
+## 6. Optional: launch coins on pump.fun (mainnet, real SOL)
+
+This adds a **"pump.fun · mainnet"** choice on the Launch page. Coins launched this way
+are created by pump.fun's own program (through PumpPortal's API) on Solana **mainnet**, so
+they appear on pump.fun. **It costs real SOL** (about 0.02–0.03 SOL plus any dev buy).
+
+1. Create a free Pinata account at https://app.pinata.cloud → **API Keys** → **New Key**
+   (admin permissions are simplest) → copy the **JWT**. pump.fun no longer hosts metadata,
+   so this is required.
+2. In `.env` set:
+   ```
+   PINATA_JWT=<your JWT>
+   PUMPFUN_ENABLED=true
+   ```
+3. Restart the app (Ctrl+C, then `npm run dev`).
+4. In Phantom, switch to **Solana Mainnet** (turn **Testnet Mode** off) and make sure the
+   wallet has a little real SOL.
+5. Go to **Launch** → choose **pump.fun · mainnet** → fill in the coin → tick the
+   confirmation box → **Launch on pump.fun**.
+
+What Ryven does for safety: before you sign, it checks the transaction PumpPortal built
+(only your wallet and the new mint sign it; it only calls pump.fun and standard Solana
+programs) and simulates it on mainnet. PumpPortal charges 0.5% on the dev buy.
+
+Not supported yet: AI agents for mainnet coins (agents run on devnet in this build).
+
+---
+
+## 7. Optional: deploying the bonding-curve program
 
 Bonding-curve trading needs the Anchor program in `onchain/`. It is **devnet-only and
 unaudited**. Requirements: Rust, the Solana CLI (https://solana.com/docs/intro/installation)

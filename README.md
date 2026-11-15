@@ -26,6 +26,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - Autonomous & approval modes, approval queue, manual payments through the same engine
 - Real USDC transfers on devnet, signature persisted before broadcast, on-chain verification of every payment
 - Token & agent discovery, public agent profiles, user dashboard, admin monitor with global kill switch
+- Optional **pump.fun launches on Solana mainnet** (real SOL) via PumpPortal: coins show on pump.fun (setup: `docs/SETUP.md` §6)
 
 **Not yet implemented** (clearly marked in the UI): bonding-curve trading (program source in
 `onchain/`, needs to be deployed), recurring/scheduled campaigns, DEX migration.

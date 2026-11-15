@@ -94,6 +94,8 @@ export type PublicAppConfig = {
   feePayer: string | null;
   testUsdcFaucet: boolean;
   curveProgramId: string | null;
+  pumpfunEnabled: boolean;
+  pumpfunReady: boolean;
   usdcMint: string;
   cluster: string;
 };

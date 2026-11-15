@@ -24,6 +24,7 @@ export function tokenView(t: Token) {
     decimals: t.decimals,
     totalSupply: fromBaseUnits(t.totalSupply, t.decimals),
     launchMode: t.launchMode,
+    network: t.network,
     launchStatus: t.launchStatus,
     launchSignature: t.launchSignature,
     curveAddress: t.curveAddress,

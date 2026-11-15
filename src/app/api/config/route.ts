@@ -19,6 +19,8 @@ export const GET = handler(async () => {
     feePayer,
     testUsdcFaucet: faucet,
     curveProgramId: publicConfig.curveProgramId,
+    pumpfunEnabled: process.env.PUMPFUN_ENABLED === "true",
+    pumpfunReady: serverEnv.pumpfunEnabled,
     usdcMint: publicConfig.usdcMint,
     cluster: publicConfig.cluster,
   });

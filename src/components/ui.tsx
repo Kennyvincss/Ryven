@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { forwardRef, useState } from "react";
 import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
-import { explorerAddress, explorerTx } from "@/lib/shared/config";
+import { explorerAddress, explorerTx, type Network } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
 
 export function cn(...c: (string | false | null | undefined)[]) {
@@ -180,10 +180,10 @@ export function CopyButton({ value, className }: { value: string; className?: st
   );
 }
 
-export function AddressLink({ address, chars = 4, className }: { address: string; chars?: number; className?: string }) {
+export function AddressLink({ address, chars = 4, className, network }: { address: string; chars?: number; className?: string; network?: Network }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 font-mono text-xs", className)}>
-      <a href={explorerAddress(address)} target="_blank" rel="noreferrer" className="text-muted hover:text-text">
+      <a href={explorerAddress(address, network)} target="_blank" rel="noreferrer" className="text-muted hover:text-text">
         {shortAddress(address, chars)}
       </a>
       <CopyButton value={address} />

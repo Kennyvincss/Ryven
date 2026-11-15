@@ -19,12 +19,19 @@ export const LAUNCH_TOKEN_DECIMALS = 6;
 export const isCircleUsdc = publicConfig.usdcMint === CIRCLE_DEVNET_USDC;
 export const usdcLabel = isCircleUsdc ? "USDC" : "Test USDC";
 
-export function explorerTx(signature: string) {
-  return `https://explorer.solana.com/tx/${signature}?cluster=${publicConfig.cluster}`;
+export type Network = "devnet" | "mainnet";
+const clusterQuery = (network?: Network) =>
+  network === "mainnet" || (!network && publicConfig.cluster === "mainnet-beta") ? "" : `?cluster=${network ?? publicConfig.cluster}`;
+export function explorerTx(signature: string, network?: Network) {
+  return `https://explorer.solana.com/tx/${signature}${clusterQuery(network)}`;
 }
-export function explorerAddress(address: string) {
-  return `https://explorer.solana.com/address/${address}?cluster=${publicConfig.cluster}`;
+export function explorerAddress(address: string, network?: Network) {
+  return `https://explorer.solana.com/address/${address}${clusterQuery(network)}`;
 }
+
+/** pump.fun bonding-curve program (mainnet). */
+export const PUMP_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+export const pumpFunCoinUrl = (mint: string) => `https://pump.fun/coin/${mint}`;
 
 export const PAYMENT_CATEGORIES = [
   { id: "community_rewards", label: "Community rewards" },

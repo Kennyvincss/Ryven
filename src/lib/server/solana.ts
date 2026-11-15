@@ -7,24 +7,26 @@ import {
 import { Connection, PublicKey, type ParsedTransactionWithMeta, type VersionedTransactionResponse } from "@solana/web3.js";
 import { publicConfig } from "../shared/config";
 import { serverEnv } from "./env";
+import { outboundFetch } from "./net";
 
-let conn: Connection | null = null;
-export function connection(): Connection {
-  if (!conn) {
-    conn = new Connection(serverEnv.rpcUrl, {
-      commitment: "confirmed",
-      // Behind a corporate/sandbox proxy, route RPC through HTTPS_PROXY.
-      ...(process.env.HTTPS_PROXY ? { fetch: proxiedFetch as unknown as typeof fetch } : {}),
-    });
-  }
-  return conn;
+function makeConnection(url: string) {
+  return new Connection(url, {
+    commitment: "confirmed",
+    // Behind a corporate/sandbox proxy, route RPC through HTTPS_PROXY.
+    ...(process.env.HTTPS_PROXY ? { fetch: ((u: string, i?: RequestInit) => outboundFetch(u, i)) as unknown as typeof fetch } : {}),
+  });
 }
 
-let dispatcher: import("undici").Dispatcher | null = null;
-async function proxiedFetch(input: string | URL | Request, init?: RequestInit) {
-  const undici = await import("undici");
-  dispatcher ??= new undici.EnvHttpProxyAgent();
-  return undici.fetch(input as string, { ...(init as object), dispatcher } as Parameters<typeof undici.fetch>[1]);
+let conn: Connection | null = null;
+/** The app's main cluster (devnet): agents, treasuries, payments, Ryven launches. */
+export function connection(): Connection {
+  return (conn ??= makeConnection(serverEnv.rpcUrl));
+}
+
+let mainnetConn: Connection | null = null;
+/** Solana mainnet: only used for pump.fun launches. */
+export function mainnetConnection(): Connection {
+  return (mainnetConn ??= makeConnection(serverEnv.mainnetRpcUrl));
 }
 
 export const usdcMint = () => new PublicKey(publicConfig.usdcMint);

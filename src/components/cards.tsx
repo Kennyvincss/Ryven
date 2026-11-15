@@ -14,7 +14,8 @@ export type TokenListItem = {
   imageUri: string | null;
   creatorWallet: string;
   totalSupply: string;
-  launchMode: "fixed_supply" | "bonding_curve";
+  launchMode: "fixed_supply" | "bonding_curve" | "pumpfun";
+  network: "devnet" | "mainnet";
   launchStatus: string;
   createdAt: string;
   volumeLamports: string;
@@ -25,6 +26,7 @@ export type TokenListItem = {
 
 export function TokenCard({ t }: { t: TokenListItem }) {
   const isCurve = t.launchMode === "bonding_curve";
+  const isPump = t.launchMode === "pumpfun";
   return (
     <Link href={`/tokens/${t.mint}`} className="group block">
       <Card className="h-full p-4 transition-colors group-hover:border-line-2 group-hover:bg-panel-2">
@@ -34,6 +36,11 @@ export function TokenCard({ t }: { t: TokenListItem }) {
             <div className="flex items-center gap-2">
               <span className="truncate font-semibold">{t.name}</span>
               <span className="shrink-0 font-mono text-xs text-muted">${t.symbol}</span>
+              {isPump && (
+                <Badge tone="accent" className="shrink-0">
+                  pump.fun
+                </Badge>
+              )}
             </div>
             <div className="mt-0.5 text-xs text-faint">
               by {shortAddress(t.creatorWallet)} · {timeAgo(t.createdAt)}
@@ -48,12 +55,16 @@ export function TokenCard({ t }: { t: TokenListItem }) {
           </div>
           <div>
             <div className="text-faint">{isCurve ? "Volume" : "Market"}</div>
-            <div className="mt-0.5 font-mono text-text">{isCurve ? `${formatCompact(Number(t.volumeLamports) / 1e9)} SOL` : "Fixed"}</div>
+            <div className="mt-0.5 font-mono text-text">
+              {isCurve ? `${formatCompact(Number(t.volumeLamports) / 1e9)} SOL` : isPump ? "pump.fun" : "Fixed"}
+            </div>
           </div>
           <div className="text-right">
-            <div className="text-faint">Agent</div>
+            <div className="text-faint">{isPump ? "Network" : "Agent"}</div>
             <div className="mt-0.5">
-              {t.agent ? (
+              {isPump ? (
+                <Badge tone="warn">mainnet</Badge>
+              ) : t.agent ? (
                 <Badge tone={t.agent.status === "active" ? "agent" : "warn"} dot>
                   {t.agent.status === "active" ? "Active" : "Paused"}
                 </Badge>

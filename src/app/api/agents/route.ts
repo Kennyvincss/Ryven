@@ -30,6 +30,9 @@ export const POST = handler(async (req: Request) => {
   const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.mint, b.tokenMint) });
   if (!token) throw new EngineError("Token not found. Launch it first.", 404);
   if (token.creatorWallet !== wallet) throw new EngineError("Only the token's creator can deploy its agent", 403);
+  if (token.network !== "devnet") {
+    throw new EngineError("Agents for mainnet (pump.fun) coins aren't supported yet: agent treasuries and payments run on devnet in this build.", 409);
+  }
   const existing = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
   if (existing) throw new EngineError("This token already has an agent", 409);
 

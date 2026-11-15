@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Bot, ExternalLink, Globe, LineChart, MessageCircle, Send } from "lucide-react";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
-import { explorerAddress, usdcLabel } from "@/lib/shared/config";
+import { explorerAddress, explorerTx, pumpFunCoinUrl, usdcLabel } from "@/lib/shared/config";
 import { formatCompact } from "@/lib/shared/amounts";
 import { PaymentStatus } from "@/components/cards";
 import { AddressLink, AgentAvatar, Alert, Badge, Button, Card, CardHeader, Empty, Spinner, Stat, TokenImage, TxLink, timeAgo } from "@/components/ui";
@@ -19,7 +19,8 @@ type Resp = {
     metadataUri: string;
     creatorWallet: string;
     totalSupply: string;
-    launchMode: "fixed_supply" | "bonding_curve";
+    launchMode: "fixed_supply" | "bonding_curve" | "pumpfun";
+    network: "devnet" | "mainnet";
     launchStatus: string;
     launchSignature: string;
     website: string | null;
@@ -70,13 +71,16 @@ export default function TokenPage() {
             <Badge tone="accent" dot>
               {t.launchStatus === "live" ? "Live" : t.launchStatus}
             </Badge>
-            <Badge>{t.launchMode === "fixed_supply" ? "Fixed supply" : "Bonding curve"}</Badge>
+            <Badge>{t.launchMode === "fixed_supply" ? "Fixed supply" : t.launchMode === "pumpfun" ? "pump.fun" : "Bonding curve"}</Badge>
+            {t.network === "mainnet" && <Badge tone="warn">Solana mainnet</Badge>}
           </div>
           <p className="mt-1.5 max-w-2xl text-sm text-muted">{t.description || "No description."}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-            <span>Mint <AddressLink address={t.mint} chars={6} /></span>
-            <span>Creator <AddressLink address={t.creatorWallet} /></span>
-            <TxLink signature={t.launchSignature} label="launch tx" />
+            <span>Mint <AddressLink address={t.mint} chars={6} network={t.network} /></span>
+            <span>Creator <AddressLink address={t.creatorWallet} network={t.network} /></span>
+            <a href={explorerTx(t.launchSignature, t.network)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-info hover:underline">
+              launch tx <ExternalLink className="size-3" />
+            </a>
           </div>
         </div>
         <div className="flex gap-2">
@@ -88,9 +92,9 @@ export default function TokenPage() {
 
       <Card className="mt-6 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
         <Stat label="Total supply" value={formatCompact(Number(data.onchain?.supply ?? t.totalSupply))} hint="read from mint" />
-        <Stat label="Holders" value={data.holders ?? "—"} hint="token accounts with balance" />
+        <Stat label="Holders" value={data.holders ?? "—"} hint={t.network === "mainnet" ? "see pump.fun" : "token accounts with balance"} />
         <Stat label="Mint authority" value={data.onchain ? (data.onchain.mintAuthority ? "Active" : "Revoked") : "—"} hint={data.onchain?.mintAuthority ? "can mint more" : "supply is fixed forever"} />
-        <Stat label="Market cap" value="—" hint={t.launchMode === "fixed_supply" ? "no curve market" : "from curve price"} />
+        <Stat label="Market cap" value="—" hint={t.launchMode === "fixed_supply" ? "no curve market" : t.launchMode === "pumpfun" ? "see pump.fun" : "from curve price"} />
       </Card>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
@@ -98,7 +102,16 @@ export default function TokenPage() {
           <Card>
             <CardHeader title="Trading" subtitle="Bonding-curve market" icon={<LineChart className="size-4" />} />
             <div className="p-5">
-              {t.launchMode === "fixed_supply" ? (
+              {t.launchMode === "pumpfun" ? (
+                <div className="space-y-3">
+                  <Alert tone="accent" title="Trades on pump.fun">
+                    This coin was created on pump.fun (Solana mainnet). Its bonding curve, price and trading live on pump.fun.
+                  </Alert>
+                  <Button href={pumpFunCoinUrl(t.mint)}>
+                    Trade on pump.fun <ExternalLink className="size-3.5" />
+                  </Button>
+                </div>
+              ) : t.launchMode === "fixed_supply" ? (
                 <Alert tone="info" title="No bonding curve for this token">
                   This token was launched with a fixed supply minted to its creator, so it has no on-chain curve market on Ryven. Bonding-curve launches
                   require the <code className="font-mono">ryven_curve</code> program{config?.curveProgramId ? "" : ", which is not deployed on this deployment (see docs/SETUP.md)"}.
@@ -182,6 +195,10 @@ export default function TokenPage() {
                   </a>
                 )}
               </div>
+            ) : t.network === "mainnet" ? (
+              <Empty icon={<Bot className="size-5" />} title="Agents not available on mainnet yet">
+                Agent treasuries and payments run on devnet in this build. Launch a devnet token to deploy an agent.
+              </Empty>
             ) : isCreator ? (
               <Empty icon={<Bot className="size-5" />} title="Deploy Your AI Agent" action={<Button variant="agent" href={`/launch?token=${t.mint}`}>Deploy agent</Button>}>
                 Give ${t.symbol} an autonomous agent with its own treasury and spending limits.

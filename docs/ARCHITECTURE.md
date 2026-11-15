@@ -137,7 +137,8 @@ after the transaction is fetched from the chain and its token-balance deltas mat
 | Solana Devnet RPC | all chain reads/writes | yes | public `https://api.devnet.solana.com` (rate-limited) or Helius/QuickNode/Triton devnet URL |
 | Anthropic Claude API | agent reasoning + tool use | yes, for the AI terminal | console.anthropic.com → API Keys |
 | PostgreSQL | app data | yes | local Postgres, or Supabase (Project → Settings → Database → connection string) |
-| Pinata (IPFS) | token image + metadata pinning | optional | app.pinata.cloud → API Keys → JWT. Without it, metadata is served by the app (clearly labelled) |
+| PumpPortal | builds pump.fun create transactions (mainnet) | only for pump.fun launches | no key needed (https://pumpportal.fun/creation) |
+| Pinata (IPFS) | token image + metadata pinning | optional (required for pump.fun) | app.pinata.cloud → API Keys → JWT. Without it, metadata is served by the app (clearly labelled) |
 | Circle devnet USDC | treasury asset | yes (or Test USDC) | faucet.circle.com (Solana Devnet). Alternatively `scripts/create-test-usdc.ts` creates a *labelled* Test-USDC mint with a faucet |
 | Solana faucet | devnet SOL for fees | yes | faucet.solana.com |
 
@@ -271,6 +272,8 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 9 | Discovery pages, dashboards, admin | ✅ responsive (checked at 390px and 1440px) |
 | 10 | Recurring/scheduled campaigns | ❌ not implemented: instructions run on demand |
 | 11 | DEX migration after graduation | ❌ not implemented |
+| 13 | pump.fun launches on mainnet (PumpPortal Local API + Pinata) | ✅ implemented; tested up to mainnet simulation with real PumpPortal transactions. A real mainnet launch costs SOL and hasn't been done from this environment |
+| 14 | AI agents for mainnet coins | ❌ not implemented: agents/payments run on devnet |
 | 12 | Distributed rate limiting | ❌ in-memory only (single instance) |
 
 ### Devnet end-to-end run (2026-11-13)

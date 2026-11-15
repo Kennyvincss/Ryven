@@ -24,7 +24,8 @@ const amount = (name: string) => bigint(name, { mode: "bigint" });
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 // ───────────────────────────── enums ─────────────────────────────
-export const launchModeEnum = pgEnum("launch_mode", ["fixed_supply", "bonding_curve"]);
+export const launchModeEnum = pgEnum("launch_mode", ["fixed_supply", "bonding_curve", "pumpfun"]);
+export const networkEnum = pgEnum("network", ["devnet", "mainnet"]);
 export const launchStatusEnum = pgEnum("launch_status", ["pending", "live", "graduated", "failed"]);
 export const agentStatusEnum = pgEnum("agent_status", ["active", "paused"]);
 export const agentModeEnum = pgEnum("agent_mode", ["autonomous", "approval"]);
@@ -83,6 +84,8 @@ export const tokens = pgTable(
     decimals: integer("decimals").notNull(),
     totalSupply: amount("total_supply").notNull(),
     launchMode: launchModeEnum("launch_mode").notNull(),
+    /** Cluster the mint lives on. Ryven launches + agents: devnet. pump.fun launches: mainnet. */
+    network: networkEnum("network").notNull().default("devnet"),
     launchStatus: launchStatusEnum("launch_status").notNull().default("pending"),
     launchSignature: text("launch_signature").notNull(),
     curveAddress: text("curve_address"),

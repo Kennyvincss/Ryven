@@ -2,19 +2,20 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Bot, Check, ImagePlus, Rocket, Wallet } from "lucide-react";
+import { Keypair, VersionedTransaction } from "@solana/web3.js";
+import { Bot, Check, ExternalLink, ImagePlus, Rocket, TriangleAlert, Wallet } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { sendWalletTransaction } from "@/lib/client/wallet-tx";
 import { useAppConfig } from "@/lib/client/hooks";
 import { buildLaunchTransaction, TOKEN_LIMITS } from "@/lib/solana/launch";
 import { toBaseUnits } from "@/lib/shared/amounts";
-import { LAUNCH_TOKEN_DECIMALS } from "@/lib/shared/config";
+import { LAUNCH_TOKEN_DECIMALS, explorerTx, pumpFunCoinUrl } from "@/lib/shared/config";
 import { AuthGate } from "@/components/wallet-button";
 import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
 import { FundTreasury } from "@/components/treasury-actions";
 import { Alert, Button, Card, CardHeader, Field, Input, PageHeader, Spinner, Textarea, TokenImage, TxLink, cn } from "@/components/ui";
 
-type Token = { mint: string; name: string; symbol: string; imageUri: string | null; launchSignature: string };
+type Token = { mint: string; name: string; symbol: string; imageUri: string | null; launchSignature: string; network?: "devnet" | "mainnet"; launchMode?: string };
 type Agent = { id: string; name: string; signerPubkey: string; creatorWallet: string; treasury: { address: string; mint: string } | null };
 
 function Steps({ step }: { step: number }) {
@@ -61,9 +62,64 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"ryven" | "pumpfun">("ryven");
+  const [devBuy, setDevBuy] = useState("0");
+  const [ack, setAck] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
+  /** pump.fun on Solana MAINNET via PumpPortal: real SOL. */
+  async function launchPumpFun() {
+    setError(null);
+    if (!f.name.trim() || !f.symbol.trim()) return setError("Name and symbol are required.");
+    if (!image) return setError("Add a coin image.");
+    if (!/^\d+(\.\d{1,9})?$/.test(devBuy) || Number(devBuy) > 10) return setError("Dev buy must be a SOL amount between 0 and 10.");
+    if (!ack) return setError("Please confirm you understand this uses real SOL on mainnet.");
+    if (!wallet.signTransaction) return setError("This wallet can't sign transactions for this flow. Try Phantom or Solflare.");
+    setBusy(true);
+    try {
+      const name = f.name.trim();
+      const symbol = f.symbol.trim().toUpperCase();
+      setStatus("Uploading image & metadata to IPFS…");
+      const meta = await api<{ metadataUri: string; imageUri: string }>("/api/pumpfun/metadata", {
+        json: { name, symbol, description: f.description, image, website: f.website, twitter: f.twitter, telegram: f.telegram },
+      });
+      setStatus("Building and checking the pump.fun transaction (simulated on mainnet)…");
+      const mint = Keypair.generate();
+      const { transaction } = await api<{ transaction: string }>("/api/pumpfun/create-tx", {
+        json: { mint: mint.publicKey.toBase58(), name, symbol, uri: meta.metadataUri, devBuySol: Number(devBuy) },
+      });
+      const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0)));
+      tx.sign([mint]);
+      setStatus("Approve the launch in your wallet (make sure it's on Solana MAINNET)…");
+      const signed = await wallet.signTransaction(tx);
+      setStatus("Sending to Solana mainnet and waiting for confirmation…");
+      const signedB64 = btoa(String.fromCharCode(...signed.serialize()));
+      const r = await api<{ token: Token; signature: string }>("/api/pumpfun/submit", {
+        json: {
+          signedTransaction: signedB64,
+          mint: mint.publicKey.toBase58(),
+          name,
+          symbol,
+          description: f.description,
+          metadataUri: meta.metadataUri,
+          imageUri: meta.imageUri,
+          website: f.website,
+          twitter: f.twitter,
+          telegram: f.telegram,
+        },
+      });
+      onLaunched(r.token);
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(/User rejected|rejected the request/i.test(msg) ? "You rejected the transaction in your wallet. Nothing was spent." : msg);
+      setStatus(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function launch() {
+    if (mode === "pumpfun") return launchPumpFun();
     setError(null);
     if (!f.name.trim() || !f.symbol.trim()) return setError("Name and symbol are required.");
     if (!image) return setError("Add a token image.");
@@ -148,33 +204,81 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
             </Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Launch type">
+            <Field label="Launch on">
               <div className="grid gap-2">
-                <div className="rounded-xl border border-accent/50 bg-accent/5 px-3 py-2.5 text-sm">
-                  <div className="font-medium">Fixed supply</div>
-                  <div className="text-xs text-muted">Full supply minted to you; mint authority permanently revoked.</div>
-                </div>
-                <div className="rounded-xl border border-line px-3 py-2.5 text-sm opacity-60">
-                  <div className="font-medium">Bonding curve</div>
-                  <div className="text-xs text-muted">
-                    {config?.curveProgramId ? "Program configured; curve launch UI not enabled in this build." : "Requires deploying the ryven_curve program (see docs). Not live on this deployment."}
+                <button
+                  type="button"
+                  onClick={() => setMode("ryven")}
+                  className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", mode === "ryven" ? "border-accent/50 bg-accent/5" : "border-line hover:bg-panel-2")}
+                >
+                  <div className="font-medium">Ryven · devnet (free test)</div>
+                  <div className="text-xs text-muted">Fixed supply minted to you, mint authority revoked. Supports AI agents.</div>
+                </button>
+                {config?.pumpfunEnabled ? (
+                  <button
+                    type="button"
+                    disabled={!config.pumpfunReady}
+                    onClick={() => setMode("pumpfun")}
+                    className={cn(
+                      "rounded-xl border px-3 py-2.5 text-left text-sm disabled:opacity-50",
+                      mode === "pumpfun" ? "border-warn/60 bg-warn/5" : "border-line hover:bg-panel-2",
+                    )}
+                  >
+                    <div className="font-medium">pump.fun · mainnet (real SOL)</div>
+                    <div className="text-xs text-muted">
+                      {config.pumpfunReady ? "Shows on pump.fun with its bonding curve. Agents not supported yet." : "Needs PINATA_JWT on the server (pump.fun metadata must be on IPFS)."}
+                    </div>
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-line px-3 py-2.5 text-sm opacity-60">
+                    <div className="font-medium">Bonding curve</div>
+                    <div className="text-xs text-muted">
+                      {config?.curveProgramId ? "Program configured; curve launch UI not enabled in this build." : "Requires deploying the ryven_curve program (see docs). Not live on this deployment."}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </Field>
-            <Field label="Total supply" hint={`${LAUNCH_TOKEN_DECIMALS} decimals`}>
-              <Input inputMode="numeric" value={f.supply} onChange={set("supply")} />
-            </Field>
+            {mode === "ryven" ? (
+              <Field label="Total supply" hint={`${LAUNCH_TOKEN_DECIMALS} decimals`}>
+                <Input inputMode="numeric" value={f.supply} onChange={set("supply")} />
+              </Field>
+            ) : (
+              <Field label="Dev buy (optional)" hint="SOL you buy at launch">
+                <Input inputMode="decimal" value={devBuy} onChange={(e) => setDevBuy(e.target.value)} />
+                <p className="mt-1.5 text-[11px] text-faint">pump.fun sets the supply (1B) and curve. PumpPortal charges 0.5% on the dev buy.</p>
+              </Field>
+            )}
           </div>
+          {mode === "pumpfun" && (
+            <div className="space-y-3 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
+              <div className="flex items-center gap-2 font-semibold text-warn">
+                <TriangleAlert className="size-4" /> This launch uses real SOL on Solana mainnet
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-xs text-text/80">
+                <li>Switch your wallet to <b>Solana Mainnet</b> (Phantom: turn Testnet Mode off).</li>
+                <li>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</li>
+                <li>The coin is created by pump.fun&apos;s program through PumpPortal (a third-party API). Ryven checks the transaction before you sign it.</li>
+              </ul>
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
+                I understand this spends real SOL and creates a public coin on pump.fun.
+              </label>
+            </div>
+          )}
           {!config?.ipfsEnabled && config && (
             <p className="text-xs text-faint">Metadata is hosted by this Ryven server (IPFS/Pinata not configured).</p>
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
-          <Button onClick={launch} loading={busy} size="lg" className="w-full">
-            <Rocket className="size-4" /> Launch token
+          <Button onClick={launch} loading={busy} size="lg" className="w-full" variant={mode === "pumpfun" ? "secondary" : "primary"}>
+            <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on pump.fun (mainnet)" : "Launch token"}
           </Button>
-          <p className="text-center text-xs text-faint">Costs roughly 0.005 devnet SOL in rent + fees. Your wallet will show the transaction before signing.</p>
+          <p className="text-center text-xs text-faint">
+            {mode === "pumpfun"
+              ? "Your wallet shows the exact transaction before you sign."
+              : "Costs roughly 0.005 devnet SOL in rent + fees. Your wallet will show the transaction before signing."}
+          </p>
         </div>
       </div>
     </Card>
@@ -246,6 +350,30 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
   );
 }
 
+function PumpFunSuccess({ token }: { token: Token }) {
+  return (
+    <Card className="p-6 text-center">
+      <TokenImage src={token.imageUri} symbol={token.symbol} size={72} className="mx-auto rounded-2xl" />
+      <h2 className="mt-4 text-xl font-semibold">
+        {token.name} <span className="font-mono text-muted">${token.symbol}</span> is live on pump.fun
+      </h2>
+      <p className="mt-1 text-sm text-muted">Created on Solana mainnet. It can take a minute to appear on pump.fun.</p>
+      <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+        <Button href={pumpFunCoinUrl(token.mint)}>
+          View on pump.fun <ExternalLink className="size-3.5" />
+        </Button>
+        <Button variant="secondary" href={explorerTx(token.launchSignature, "mainnet")}>
+          Launch transaction <ExternalLink className="size-3.5" />
+        </Button>
+        <Button variant="secondary" href={`/tokens/${token.mint}`}>
+          Ryven page
+        </Button>
+      </div>
+      <p className="mt-5 text-xs text-faint">AI agents for mainnet coins aren&apos;t supported yet; agents run on devnet in this build.</p>
+    </Card>
+  );
+}
+
 function LaunchFlow() {
   const sp = useSearchParams();
   const router = useRouter();
@@ -267,6 +395,7 @@ function LaunchFlow() {
   }, [sp]);
 
   if (loading) return <Spinner />;
+  if (token?.network === "mainnet") return <PumpFunSuccess token={token} />;
   const step = !token ? 0 : !agent ? 1 : 2;
   return (
     <>

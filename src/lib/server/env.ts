@@ -42,8 +42,12 @@ export const serverEnv = {
   get pinataJwt() {
     return process.env.PINATA_JWT || null;
   },
-  get pinataGateway() {
-    return process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud";
+  get mainnetRpcUrl() {
+    return process.env.MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
+  },
+  /** pump.fun launches need the feature flag AND Pinata (pump.fun no longer hosts metadata). */
+  get pumpfunEnabled() {
+    return process.env.PUMPFUN_ENABLED === "true" && !!process.env.PINATA_JWT;
   },
   get testUsdcFaucetEnabled() {
     return process.env.TEST_USDC_FAUCET_ENABLED === "true";

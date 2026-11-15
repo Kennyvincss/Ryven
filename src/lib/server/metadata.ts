@@ -5,22 +5,30 @@ import "server-only";
  */
 import { db, schema } from "./db";
 import { serverEnv } from "./env";
+import { outboundFetch } from "./net";
 import { publicConfig } from "../shared/config";
 
 export const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 export const MAX_IMAGE_BYTES = 512 * 1024;
 
-async function pinataUpload(bytes: Buffer, contentType: string, filename: string): Promise<string> {
+/**
+ * Pinata v3 upload (https://uploads.pinata.cloud/v3/files, network=public), the flow
+ * PumpPortal documents for pump.fun launches. Returns an ipfs.io gateway URL.
+ */
+export async function pinataUpload(bytes: Buffer, contentType: string, filename: string): Promise<string> {
+  if (!serverEnv.pinataJwt) throw new Error("PINATA_JWT is not configured");
   const form = new FormData();
+  form.append("network", "public");
   form.append("file", new Blob([new Uint8Array(bytes)], { type: contentType }), filename);
-  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+  const res = await outboundFetch("https://uploads.pinata.cloud/v3/files", {
     method: "POST",
     headers: { Authorization: `Bearer ${serverEnv.pinataJwt}` },
     body: form,
   });
-  if (!res.ok) throw new Error(`Pinata upload failed (${res.status}): ${await res.text()}`);
-  const { IpfsHash } = (await res.json()) as { IpfsHash: string };
-  return `${serverEnv.pinataGateway.replace(/\/$/, "")}/ipfs/${IpfsHash}`;
+  if (!res.ok) throw new Error(`Pinata upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  const json = (await res.json()) as { data?: { cid?: string } };
+  if (!json.data?.cid) throw new Error("Pinata upload returned no CID");
+  return `https://ipfs.io/ipfs/${json.data.cid}`;
 }
 
 export async function storeBlob(bytes: Buffer, contentType: string, uploader: string, filename: string) {
