@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate.mts",
     "keys": "tsx scripts/generate-keys.ts",
     "test-usdc": "tsx scripts/create-test-usdc.mts",
     "typecheck": "tsc --noEmit"
