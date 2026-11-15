@@ -404,7 +404,14 @@ export async function runInstruction(agentId: string, text: string, emit: (e: Ag
     let message = (e as Error).message;
     if (e instanceof Anthropic.AuthenticationError) message = "Anthropic API key is invalid.";
     else if (e instanceof Anthropic.RateLimitError) message = "AI rate limit reached. Try again shortly.";
-    else if (e instanceof Anthropic.APIError) message = `AI service error (${e.status}): ${e.message}`;
+    else if (e instanceof Anthropic.APIError) {
+      // Pull the human-readable message out of the API error body instead of showing raw JSON.
+      const body = e.error as { error?: { message?: string } } | undefined;
+      const detail = body?.error?.message ?? e.message;
+      message = /credit balance is too low/i.test(detail)
+        ? "Your Anthropic account has no API credit. Add credit at console.anthropic.com → Billing, then try again. (Manual payments still work meanwhile.)"
+        : `AI service error (${e.status}): ${detail}`;
+    }
     emit({ type: "error", message });
     replies.push(`(error: ${message})`);
   }
