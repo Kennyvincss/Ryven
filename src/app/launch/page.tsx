@@ -16,7 +16,7 @@ import { FundTreasury } from "@/components/treasury-actions";
 import { Alert, Button, Card, CardHeader, Field, Input, PageHeader, Spinner, Textarea, TokenImage, TxLink, cn } from "@/components/ui";
 
 type Token = { mint: string; name: string; symbol: string; imageUri: string | null; launchSignature: string; network?: "devnet" | "mainnet"; launchMode?: string };
-type Agent = { id: string; name: string; signerPubkey: string; creatorWallet: string; treasury: { address: string; mint: string } | null };
+type Agent = { id: string; name: string; signerPubkey: string; creatorWallet: string; network?: "devnet" | "mainnet"; treasury: { address: string; mint: string } | null };
 
 function Steps({ step }: { step: number }) {
   const items = [
@@ -296,13 +296,16 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
   const [policy, setPolicy] = useState<PolicyState>(DEFAULT_POLICY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ack, setAck] = useState(false);
+  const isMainnet = token.network === "mainnet";
   const set = (k: keyof typeof p) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP({ ...p, [k]: e.target.value });
 
   async function deploy() {
+    if (isMainnet && !ack) return setError("Please confirm you understand this agent will move real USDC on mainnet.");
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ agent: Agent }>("/api/agents", { json: { tokenMint: token.mint, ...p, ...policyPayload(policy) } });
+      const r = await api<{ agent: Agent }>("/api/agents", { json: { tokenMint: token.mint, ...p, ...policyPayload(policy), acknowledgeMainnet: isMainnet ? ack : undefined } });
       onDeployed(r.agent);
     } catch (e) {
       const issues = (e as { body?: { issues?: { message: string }[] } }).body?.issues;
@@ -341,6 +344,21 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
           Ryven generates a dedicated signing key for this agent and stores it encrypted on the server. It holds no funds. In the next step you
           give it a capped on-chain allowance over a treasury you own. The AI model never sees the key.
         </Alert>
+        {isMainnet && (
+          <div className="space-y-2 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
+            <div className="flex items-center gap-2 font-semibold text-warn">
+              <TriangleAlert className="size-4" /> This agent runs on Solana mainnet with real USDC
+            </div>
+            <p className="text-xs text-text/80">
+              Its treasury is a USDC account you own; it can only spend the allowance you give it, within the limits above. Start small. Network
+              fees for its payments are paid by this Ryven server&apos;s fee payer, which needs real SOL on mainnet.
+            </p>
+            <label className="flex items-start gap-2 text-xs">
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" /> I understand this agent moves real
+              money.
+            </label>
+          </div>
+        )}
         {error && <Alert tone="danger">{error}</Alert>}
         <Button onClick={deploy} loading={busy} variant="agent" size="lg" className="w-full">
           <Bot className="size-4" /> Deploy agent
@@ -352,7 +370,7 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
 
 function PumpFunSuccess({ token }: { token: Token }) {
   return (
-    <Card className="p-6 text-center">
+    <Card className="mb-4 p-6 text-center">
       <TokenImage src={token.imageUri} symbol={token.symbol} size={72} className="mx-auto rounded-2xl" />
       <h2 className="mt-4 text-xl font-semibold">
         {token.name} <span className="font-mono text-muted">${token.symbol}</span> is live on pump.fun
@@ -369,7 +387,7 @@ function PumpFunSuccess({ token }: { token: Token }) {
           Ryven page
         </Button>
       </div>
-      <p className="mt-5 text-xs text-faint">AI agents for mainnet coins aren&apos;t supported yet; agents run on devnet in this build.</p>
+      <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). On mainnet it pays in real USDC.</p>
     </Card>
   );
 }
@@ -395,11 +413,11 @@ function LaunchFlow() {
   }, [sp]);
 
   if (loading) return <Spinner />;
-  if (token?.network === "mainnet") return <PumpFunSuccess token={token} />;
   const step = !token ? 0 : !agent ? 1 : 2;
   return (
     <>
       <Steps step={step} />
+      {token?.network === "mainnet" && !agent && <PumpFunSuccess token={token} />}
       {token && (
         <Card className="mb-4 flex items-center gap-3 p-4">
           <TokenImage src={token.imageUri} symbol={token.symbol} size={40} />
@@ -409,7 +427,7 @@ function LaunchFlow() {
             </div>
             <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
               <span className="font-mono">{token.mint.slice(0, 8)}…</span>
-              <TxLink signature={token.launchSignature} label="launch tx" />
+              <TxLink signature={token.launchSignature} label="launch tx" network={token.network} />
             </div>
           </div>
           <Button variant="secondary" size="sm" href={`/tokens/${token.mint}`}>

@@ -19,7 +19,7 @@ import {
   isPlatformPaused,
   type Payment,
 } from "../engine/payments";
-import { connection, readTreasuryState } from "../solana";
+import { connectionFor, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
 import { listTrades, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
@@ -61,7 +61,7 @@ export function paymentView(p: Payment): PaymentView {
     category: p.category,
     status: p.status,
     signature: p.status === "confirmed" || p.status === "executing" || p.status === "failed" ? p.signature : null,
-    explorerUrl: p.signature && (p.status === "confirmed" || p.status === "executing") ? explorerTx(p.signature) : null,
+    explorerUrl: p.signature && (p.status === "confirmed" || p.status === "executing") ? explorerTx(p.signature, p.network) : null,
     policySummary: p.policy.summary,
     error: p.error,
   };
@@ -220,7 +220,7 @@ async function tokenTreasurySummary(agent: typeof schema.agents.$inferSelect) {
   if (agent.tokenDailyLimit === null) return { enabled: false, note: "The creator has not enabled rewards in the agent's own token." };
   try {
     const { treasury } = await loadAgent(agent.id, "token");
-    const [state, snap] = await Promise.all([readTreasuryState(treasury.address), getSpendingSnapshot(agent.id, "token")]);
+    const [state, snap] = await Promise.all([readTreasuryState(treasury.address, connectionFor(agent.network)), getSpendingSnapshot(agent.id, "token")]);
     const f = (v: bigint) => fromBaseUnits(v, treasury.decimals);
     const delegated = state.delegate === agent.signerPubkey;
     return {
@@ -244,7 +244,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
     case "get_treasury_status": {
       ctx.emit({ type: "status", status: "analysing", message: "Reading treasury state from Solana" });
       const [state, snap, globalPause] = await Promise.all([
-        readTreasuryState(treasury.address),
+        readTreasuryState(treasury.address, connectionFor(agent.network)),
         getSpendingSnapshot(agent.id),
         isPlatformPaused(),
       ]);
@@ -368,9 +368,10 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
       if (!token) return { content: "Token not found", isError: true };
       const program = new PublicKey(token.tokenProgram);
-      const mintInfo = await getMint(connection(), new PublicKey(token.mint), "confirmed", program).catch(() => null);
+      const tconn = connectionFor(token.network);
+      const mintInfo = await getMint(tconn, new PublicKey(token.mint), "confirmed", program).catch(() => null);
       const supply = mintInfo ? Number(fromBaseUnits(mintInfo.supply, mintInfo.decimals)) : null;
-      const report = await getHolders(token.mint, program).catch(() => null);
+      const report = await getHolders(token.mint, program, tconn).catch(() => null);
       return {
         content: JSON.stringify({
           name: token.name,
@@ -409,7 +410,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         return { content: `"${wallet}" is not a valid Solana wallet address`, isError: true };
       }
       ctx.emit({ type: "status", status: "analysing", message: `Reading balances of ${address.slice(0, 4)}…${address.slice(-4)}` });
-      const b = await walletBalances(address);
+      const b = await walletBalances(address, connectionFor(agent.network));
       const name = (mint: string) => (mint === treasury.mint ? "USDC" : token && mint === token.mint ? `$${token.symbol}` : undefined);
       return {
         content: JSON.stringify({
@@ -488,7 +489,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
 }
 
 function systemPrompt(agent: typeof schema.agents.$inferSelect, token: { name: string; symbol: string; mint: string }) {
-  return `You are ${agent.name}, the autonomous treasury agent for the token $${token.symbol} (${token.name}, mint ${token.mint}) on the Ryven platform (Solana ${process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet"}).
+  return `You are ${agent.name}, the autonomous treasury agent for the token $${token.symbol} (${token.name}, mint ${token.mint}) on the Ryven platform (Solana ${agent.network}${agent.network === "mainnet" ? ": payments move REAL money" : ""}).
 
 ## Identity
 Description: ${agent.description || "(none)"}

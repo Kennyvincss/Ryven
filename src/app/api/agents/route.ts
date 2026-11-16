@@ -11,7 +11,7 @@ import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { agentView, listAgents } from "@/lib/server/queries";
 import { generateAgentSigner } from "@/lib/server/signer";
 import { deriveTreasuryAddress, treasurySeed } from "@/lib/solana/treasury";
-import { publicConfig } from "@/lib/shared/config";
+import { usdcMintFor } from "@/lib/shared/config";
 
 export const GET = handler(async (req: Request) => {
   const u = new URL(req.url);
@@ -20,7 +20,7 @@ export const GET = handler(async (req: Request) => {
   });
 });
 
-const Body = z.object({ tokenMint: z.string() }).and(ProfileInput).and(PolicyInput);
+const Body = z.object({ tokenMint: z.string(), acknowledgeMainnet: z.boolean().optional() }).and(ProfileInput).and(PolicyInput);
 
 /** Deploys an agent for a token the caller created: new delegate key + treasury address. */
 export const POST = handler(async (req: Request) => {
@@ -30,8 +30,8 @@ export const POST = handler(async (req: Request) => {
   const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.mint, b.tokenMint) });
   if (!token) throw new EngineError("Token not found. Launch it first.", 404);
   if (token.creatorWallet !== wallet) throw new EngineError("Only the token's creator can deploy its agent", 403);
-  if (token.network !== "devnet") {
-    throw new EngineError("Agents for mainnet (pump.fun) coins aren't supported yet: agent treasuries and payments run on devnet in this build.", 409);
+  if (token.network === "mainnet" && b.acknowledgeMainnet !== true) {
+    throw new EngineError("This coin is on Solana mainnet: its agent will move real USDC. Confirm you understand to deploy it.", 400);
   }
   const existing = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
   if (existing) throw new EngineError("This token already has an agent", 409);
@@ -47,6 +47,7 @@ export const POST = handler(async (req: Request) => {
         id,
         tokenId: token.id,
         creatorWallet: wallet,
+        network: token.network,
         name: b.name,
         description: b.description,
         personality: b.personality,
@@ -65,10 +66,15 @@ export const POST = handler(async (req: Request) => {
     await tx.insert(schema.agentSigners).values({ agentId: id, ...signer.encrypted });
     const [t] = await tx
       .insert(schema.treasuries)
-      .values({ agentId: id, address: treasury, seed: treasurySeed(id), ownerWallet: wallet, mint: publicConfig.usdcMint })
+      .values({ agentId: id, address: treasury, seed: treasurySeed(id), ownerWallet: wallet, mint: usdcMintFor(token.network) })
       .returning();
     return { a, t };
   });
-  await logActivity({ agentId: id, type: "deployed", status: "completed", message: `${b.name} deployed for $${token.symbol}` });
+  await logActivity({
+    agentId: id,
+    type: "deployed",
+    status: "completed",
+    message: `${b.name} deployed for $${token.symbol}${token.network === "mainnet" ? " on Solana mainnet (real USDC)" : ""}`,
+  });
   return json({ agent: agentView(agent.a, agent.t) });
 });

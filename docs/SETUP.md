@@ -211,7 +211,24 @@ Not supported yet: AI agents for mainnet coins (agents run on devnet in this bui
 
 ## 7. Optional: rewards in your own token, and agent trading
 
-### Rewards paid in your token (devnet)
+### AI agents for pump.fun coins (mainnet, REAL USDC)
+
+After launching a coin on pump.fun (§6), the success screen continues with **Deploy agent**
+(or open the coin's Ryven page → **Deploy Your AI Agent (mainnet)**).
+
+1. Fill in the agent and its limits, tick **"I understand this agent moves real money"**,
+   **Deploy agent**.
+2. **Fund the treasury** with real USDC and set an allowance (Phantom on **Mainnet**). The
+   treasury is a USDC account you own; the agent can only spend the allowance.
+3. The server's **fee payer** pays the network fees of the agent's payments, so it needs a
+   little **real SOL on mainnet** (about 0.000005 SOL per payment, plus about 0.002 SOL the
+   first time someone receives USDC). Send SOL to the fee payer address shown by
+   `npm run keys`, or set a separate `MAINNET_FEE_PAYER_SECRET_KEY`.
+
+Everything else (limits, approvals, pause, revoke, withdraw, token rewards, trading) works
+the same as on devnet, just with real money. Start with small amounts.
+
+### Rewards paid in your token
 
 1. Open your agent's console → **Permissions** → **Rewards in $YOURTOKEN** → tick **Enabled**,
    set the limits, **Save token rewards**.

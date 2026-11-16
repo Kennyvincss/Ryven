@@ -10,7 +10,7 @@ import { PublicKey, SendTransactionError } from "@solana/web3.js";
 import { deriveTreasuryAddress, treasurySeed, type TreasuryAsset } from "../../solana/treasury";
 import { BlockhashExpiredError, confirmByPolling } from "../../solana/confirm";
 import { db, schema, type Tx } from "../db";
-import { connection, readTreasuryState, getConfirmedTransaction, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
+import { connectionFor, readTreasuryState, getConfirmedTransaction, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
 import { signAgentPayment } from "../signer";
 import { evaluatePayment, type AgentPolicy, type PaymentProposal } from "./policy";
 import { logActivity } from "./activity";
@@ -61,7 +61,6 @@ export async function ensureTokenTreasury(agent: Agent): Promise<Treasury> {
   if (existing) return existing;
   const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
   if (!token) throw new EngineError("Agent token not found", 404);
-  if (token.network !== "devnet") throw new EngineError("Token rewards are only available for devnet tokens", 409);
   const programId = new PublicKey(token.tokenProgram);
   const address = deriveTreasuryAddress(new PublicKey(agent.creatorWallet), agent.id, "token", programId).toBase58();
   await db
@@ -114,8 +113,8 @@ async function sumAmounts(tx: Tx | typeof db, agentId: string, asset: TreasuryAs
 }
 
 /** Refreshes the display cache from chain and returns the authoritative state. */
-export async function syncTreasury(treasury: Treasury): Promise<TreasuryState> {
-  const state = await readTreasuryState(treasury.address);
+export async function syncTreasury(treasury: Treasury, network: "devnet" | "mainnet" = "devnet"): Promise<TreasuryState> {
+  const state = await readTreasuryState(treasury.address, connectionFor(network));
   if (state.exists && (state.owner !== treasury.ownerWallet || state.mint !== treasury.mint)) {
     throw new EngineError("Treasury account owner/mint does not match the agent record", 409);
   }
@@ -159,7 +158,7 @@ export async function proposePayments(args: {
   const policy = toPolicy(agent, treasury);
   const [globalPause, onchain] = await Promise.all([
     isPlatformPaused(),
-    readTreasuryState(treasury.address).catch(() => null),
+    readTreasuryState(treasury.address, connectionFor(agent.network)).catch(() => null),
   ]);
   const onchainCtx =
     onchain && onchain.exists && onchain.owner === treasury.ownerWallet && onchain.mint === treasury.mint && !onchain.frozen
@@ -228,6 +227,7 @@ export async function proposePayments(args: {
           asset,
           decimals: treasury.decimals,
           symbol: treasury.symbol,
+          network: agent.network,
           category: item.category,
           campaign: item.campaign ?? "",
           reason: item.reason,
@@ -318,7 +318,7 @@ export async function executePayment(paymentId: string): Promise<Payment> {
     data: { paymentId: claimed.id },
   });
 
-  const conn = connection();
+  const conn = connectionFor(agent.network);
   let signature: string;
   let lastValidBlockHeight: number;
   let raw: Buffer;
@@ -337,6 +337,7 @@ export async function executePayment(paymentId: string): Promise<Payment> {
       recentBlockhash: blockhash,
       tokenProgram: treasury.tokenProgram,
       decimals: treasury.decimals,
+      network: agent.network,
     });
     signature = signed.signature;
     raw = signed.tx.serialize();
@@ -379,10 +380,11 @@ async function verifyAndConfirm(paymentId: string): Promise<Payment> {
   const p = await db.query.payments.findFirst({ where: eq(schema.payments.id, paymentId) });
   if (!p || !p.signature) throw new EngineError("Payment has no signature", 409);
   const { agent, treasury } = await loadAgent(p.agentId, p.asset);
-  let txInfo = await getConfirmedTransaction(p.signature);
+  const vconn = connectionFor(agent.network);
+  let txInfo = await getConfirmedTransaction(p.signature, vconn);
   for (let i = 0; !txInfo && i < 5; i++) {
     await new Promise((r) => setTimeout(r, 1000));
-    txInfo = await getConfirmedTransaction(p.signature);
+    txInfo = await getConfirmedTransaction(p.signature, vconn);
   }
   if (!txInfo) {
     await db.update(schema.payments).set({ error: "Confirmed but transaction not yet retrievable; will re-verify" }).where(eq(schema.payments.id, p.id));
@@ -410,14 +412,14 @@ async function verifyAndConfirm(paymentId: string): Promise<Payment> {
       .update(schema.treasuries)
       .set({ totalSpent: sql`${schema.treasuries.totalSpent} + ${p.amount}` })
       .where(eq(schema.treasuries.id, treasury.id));
-    await syncTreasury(treasury).catch(() => undefined);
+    await syncTreasury(treasury, agent.network).catch(() => undefined);
     await logActivity({
       agentId: agent.id,
       instructionId: p.instructionId,
       type: "payment_confirmed",
       status: "completed",
       message: `Confirmed on-chain: ${fmtAmount(p.amount, treasury)} → ${p.recipient.slice(0, 4)}…${p.recipient.slice(-4)}`,
-      data: { paymentId: p.id, signature: p.signature },
+      data: { paymentId: p.id, signature: p.signature, network: agent.network },
     });
   }
   return confirmed ?? (await db.query.payments.findFirst({ where: eq(schema.payments.id, p.id) }))!;
@@ -429,7 +431,7 @@ export async function reconcilePayment(paymentId: string): Promise<Payment> {
   if (!p) throw new EngineError("Payment not found", 404);
   if (p.status !== "executing") return p;
   if (!p.signature) return fail(p.id, "Never signed", p.agentId, p.instructionId);
-  const conn = connection();
+  const conn = connectionFor(p.network);
   const { value } = await conn.getSignatureStatuses([p.signature], { searchTransactionHistory: true });
   const st = value[0];
   if (st) {
@@ -460,7 +462,7 @@ export async function approvePayment(paymentId: string, approverWallet: string):
   if (agent.creatorWallet !== approverWallet) throw new EngineError("Only the agent's creator can approve payments", 403);
   if (p.status !== "awaiting_approval") throw new EngineError(`Payment is ${p.status}, not awaiting approval`, 409);
 
-  const [globalPause, onchain] = await Promise.all([isPlatformPaused(), readTreasuryState(treasury.address).catch(() => null)]);
+  const [globalPause, onchain] = await Promise.all([isPlatformPaused(), readTreasuryState(treasury.address, connectionFor(agent.network)).catch(() => null)]);
 
   const updated = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${p.agentId}))`);
@@ -549,10 +551,11 @@ export async function rejectPayment(paymentId: string, approverWallet: string): 
 /** Verifies a creator/community transaction against the agent's treasuries and records deposits. */
 export async function recordTreasuryTransaction(agentId: string, signature: string) {
   const { agent } = await loadAgent(agentId);
-  let txInfo = await getConfirmedTransaction(signature);
+  const rconn = connectionFor(agent.network);
+  let txInfo = await getConfirmedTransaction(signature, rconn);
   for (let i = 0; !txInfo && i < 8; i++) {
     await new Promise((r) => setTimeout(r, 1500));
-    txInfo = await getConfirmedTransaction(signature);
+    txInfo = await getConfirmedTransaction(signature, rconn);
   }
   if (!txInfo) throw new EngineError("Transaction not found on-chain (yet)", 404);
   if (txInfo.meta?.err) throw new EngineError("Transaction failed on-chain", 400);
@@ -596,7 +599,7 @@ export async function recordTreasuryTransaction(agentId: string, signature: stri
       });
     }
     total += delta;
-    await syncTreasury(treasury).catch(() => undefined);
+    await syncTreasury(treasury, agent.network).catch(() => undefined);
   }
   return { delta: total };
 }

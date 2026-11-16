@@ -6,7 +6,7 @@ import { Activity, ArrowUpRight, CandlestickChart, Pause, Play, Settings, Users,
 import { api } from "@/lib/client/api";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
 import { useSession } from "@/lib/client/session";
-import { usdcLabel } from "@/lib/shared/config";
+import { usdcLabelFor } from "@/lib/shared/config";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { TokenRewardSettings, TradingPanel, TradingSettings } from "@/components/trading-panel";
 import {
@@ -37,6 +37,7 @@ type AgentResp = {
     status: "active" | "paused";
     pausedReason: string | null;
     mode: "autonomous" | "approval";
+    network: "devnet" | "mainnet";
     creatorWallet: string;
     signerPubkey: string;
     policy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string; categories: string[]; recipientPolicy: "allowlist_only" | "allowlist_or_approval" };
@@ -81,7 +82,7 @@ function Console({ id }: { id: string }) {
     );
   const a = d.agent;
   const t = treasuryQ.data;
-  const agentRef = { id: a.id, signerPubkey: a.signerPubkey, creatorWallet: a.creatorWallet, treasury: a.treasury };
+  const agentRef = { id: a.id, signerPubkey: a.signerPubkey, creatorWallet: a.creatorWallet, network: a.network, treasury: a.treasury };
 
   async function toggle() {
     setToggling(true);
@@ -104,6 +105,7 @@ function Console({ id }: { id: string }) {
               <h1 className="text-xl font-semibold">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous mode" : "Approval mode"}</Badge>
+              {a.network === "mainnet" && <Badge tone="warn">Mainnet · real USDC</Badge>}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               {d.token && (
@@ -112,7 +114,7 @@ function Console({ id }: { id: string }) {
                 </Link>
               )}
               <span>
-                agent key <AddressLink address={a.signerPubkey} />
+                agent key <AddressLink address={a.signerPubkey} network={a.network} />
               </span>
             </div>
             {a.status === "paused" && a.pausedReason && <div className="mt-1 text-xs text-warn">{a.pausedReason}</div>}
@@ -182,13 +184,13 @@ function Console({ id }: { id: string }) {
                   }}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${asset === a ? "bg-panel-3 text-text" : "text-muted hover:text-text"}`}
                 >
-                  {a === "usdc" ? usdcLabel : `$${d.token?.symbol ?? "TOKEN"} rewards`}
+                  {a === "usdc" ? usdcLabelFor(d.agent.network) : `$${d.token?.symbol ?? "TOKEN"} rewards`}
                 </button>
               ))}
             </div>
             <CardHeader
               title={asset === "usdc" ? "Treasury" : `$${d.token?.symbol ?? ""} rewards treasury`}
-              subtitle={t ? <AddressLink address={t.address} /> : "Reading from Solana…"}
+              subtitle={t ? <AddressLink address={t.address} network={a.network} /> : "Reading from Solana…"}
               icon={<Wallet className="size-4" />}
               right={
                 <Button size="sm" variant="secondary" onClick={() => setShowFund((s) => !s)}>

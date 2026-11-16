@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Activity, ShieldCheck, Users, Wallet } from "lucide-react";
 import { useApi } from "@/lib/client/hooks";
-import { PAYMENT_CATEGORIES, usdcLabel } from "@/lib/shared/config";
+import { PAYMENT_CATEGORIES, usdcLabel, usdcLabelFor } from "@/lib/shared/config";
 import { ActivityFeed, ContributorsPanel, PaymentsTable, type ActivityItem, type Contributor, type Payment } from "@/components/console-panels";
 import { DepositToTreasury } from "@/components/treasury-actions";
 import { AddressLink, AgentAvatar, Alert, Badge, Button, Card, CardHeader, Spinner, Stat, TokenImage, timeAgo } from "@/components/ui";
@@ -19,6 +19,7 @@ type Resp = {
     status: string;
     pausedReason: string | null;
     mode: string;
+    network: "devnet" | "mainnet";
     creatorWallet: string;
     signerPubkey: string;
     policy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string; categories: string[]; recipientPolicy: string };
@@ -53,6 +54,7 @@ export default function AgentProfile() {
               <h1 className="text-2xl font-semibold tracking-tight">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous" : "Approval mode"}</Badge>
+              {a.network === "mainnet" && <Badge tone="warn">Solana mainnet</Badge>}
             </div>
             <p className="mt-1.5 max-w-2xl text-sm text-muted">{a.description}</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
@@ -70,7 +72,7 @@ export default function AgentProfile() {
       </Card>
 
       <Card className="mt-5 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
-        <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${usdcLabel} · synced ${a.treasury?.lastSyncedAt ? timeAgo(a.treasury.lastSyncedAt) : "never"}`} accent />
+        <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${usdcLabelFor(a.network)} · synced ${a.treasury?.lastSyncedAt ? timeAgo(a.treasury.lastSyncedAt) : "never"}`} accent />
         <Stat label="Total paid out" value={Number(a.stats?.confirmedVolume ?? 0).toLocaleString()} hint={usdcLabel} />
         <Stat label="Confirmed payments" value={a.stats?.confirmedPayments ?? 0} />
         <Stat label="Tasks completed" value={a.stats?.tasksCompleted ?? 0} hint="instructions with confirmed payouts" />
@@ -103,14 +105,14 @@ export default function AgentProfile() {
               <div><dt className="text-xs text-faint">On-chain allowance</dt><dd className="font-mono">{a.treasury?.cachedAllowance ?? "0"}</dd></div>
               <div><dt className="text-xs text-faint">Recipients</dt><dd>{a.policy.recipientPolicy === "allowlist_only" ? "Approved only" : "Approved / with approval"}</dd></div>
               <div className="col-span-2"><dt className="text-xs text-faint">Categories</dt><dd className="mt-1 flex flex-wrap gap-1">{cats.map((c) => <Badge key={c}>{c}</Badge>)}</dd></div>
-              <div className="col-span-2"><dt className="text-xs text-faint">Agent signing key (delegate)</dt><dd><AddressLink address={a.signerPubkey} chars={6} /></dd></div>
-              {a.treasury && <div className="col-span-2"><dt className="text-xs text-faint">Treasury account</dt><dd><AddressLink address={a.treasury.address} chars={6} /></dd></div>}
+              <div className="col-span-2"><dt className="text-xs text-faint">Agent signing key (delegate)</dt><dd><AddressLink address={a.signerPubkey} chars={6} network={a.network} /></dd></div>
+              {a.treasury && <div className="col-span-2"><dt className="text-xs text-faint">Treasury account</dt><dd><AddressLink address={a.treasury.address} chars={6} network={a.network} /></dd></div>}
             </dl>
           </Card>
           <Card>
             <CardHeader title="Support this treasury" subtitle={`Anyone can deposit ${usdcLabel}`} icon={<Wallet className="size-4" />} />
             <div className="p-5">
-              <DepositToTreasury agent={{ id: a.id, signerPubkey: a.signerPubkey, creatorWallet: a.creatorWallet, treasury: a.treasury }} onDone={q.reload} />
+              <DepositToTreasury agent={{ id: a.id, signerPubkey: a.signerPubkey, creatorWallet: a.creatorWallet, network: a.network, treasury: a.treasury }} onDone={q.reload} />
             </div>
           </Card>
           <Card>

@@ -91,7 +91,7 @@ export function PaymentChip({ p }: { p: PaymentView }) {
         </span>
         <span className="truncate">“{p.reason}”</span>
         {p.status === "confirmed" && p.signature && (
-          <a href={explorerTx(p.signature)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-info hover:underline">
+          <a href={p.explorerUrl ?? explorerTx(p.signature)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-info hover:underline">
             {shortAddress(p.signature, 6)} <ExternalLink className="size-3" />
           </a>
         )}

@@ -3,6 +3,8 @@
  * vars and must never contain secrets.
  */
 export const CIRCLE_DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+/** Circle's official USDC on Solana mainnet. */
+export const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 export const publicConfig = {
   cluster: (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet") as "devnet" | "mainnet-beta" | "testnet",
@@ -10,7 +12,14 @@ export const publicConfig = {
   usdcMint: process.env.NEXT_PUBLIC_USDC_MINT ?? CIRCLE_DEVNET_USDC,
   curveProgramId: process.env.NEXT_PUBLIC_CURVE_PROGRAM_ID || null,
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  /** Browser RPC for mainnet (pump.fun coins and their agents). */
+  mainnetRpcUrl: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com",
 };
+
+/** USDC mint used by agent treasuries on each network. */
+export const usdcMintFor = (network: "devnet" | "mainnet") => (network === "mainnet" ? MAINNET_USDC : publicConfig.usdcMint);
+/** Display name for an agent's USDC: real on mainnet, possibly "Test USDC" on devnet. */
+export const usdcLabelFor = (network: "devnet" | "mainnet") => (network === "mainnet" ? "USDC" : usdcLabel);
 
 export const USDC_DECIMALS = 6;
 export const LAUNCH_TOKEN_DECIMALS = 6;

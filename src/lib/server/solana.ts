@@ -25,9 +25,13 @@ export function connection(): Connection {
 }
 
 let mainnetConn: Connection | null = null;
-/** Solana mainnet: only used for pump.fun launches. */
+/** Solana mainnet: pump.fun launches, trading, and mainnet agents. */
 export function mainnetConnection(): Connection {
   return (mainnetConn ??= makeConnection(serverEnv.mainnetRpcUrl));
+}
+
+export function connectionFor(network: "devnet" | "mainnet"): Connection {
+  return network === "mainnet" ? mainnetConnection() : connection();
 }
 
 export const usdcMint = () => new PublicKey(publicConfig.usdcMint);
@@ -43,8 +47,8 @@ export type TreasuryState = {
 };
 
 /** Reads the treasury token account directly from chain (authoritative). */
-export async function readTreasuryState(address: string): Promise<TreasuryState> {
-  const info = await connection().getAccountInfo(new PublicKey(address), "confirmed");
+export async function readTreasuryState(address: string, conn: Connection = connection()): Promise<TreasuryState> {
+  const info = await conn.getAccountInfo(new PublicKey(address), "confirmed");
   if (!info) return { exists: false, owner: null, mint: null, balance: 0n, delegate: null, allowance: 0n, frozen: false };
   if (!(info.owner.equals(TOKEN_PROGRAM_ID) || info.owner.equals(TOKEN_2022_PROGRAM_ID)) || info.data.length < ACCOUNT_SIZE) {
     throw new Error("Treasury address is not an SPL token account");
@@ -62,8 +66,8 @@ export async function readTreasuryState(address: string): Promise<TreasuryState>
   };
 }
 
-export async function getConfirmedTransaction(signature: string): Promise<VersionedTransactionResponse | null> {
-  return connection().getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+export async function getConfirmedTransaction(signature: string, conn: Connection = connection()): Promise<VersionedTransactionResponse | null> {
+  return conn.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
 }
 
 export async function getParsedTx(signature: string): Promise<ParsedTransactionWithMeta | null> {

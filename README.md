@@ -31,8 +31,10 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - Agent can read **token holders, supply and any wallet's balances**
 - Optional **agent trading on pump.fun** (mainnet, real SOL): *proposal* mode (you sign each trade) or *autonomous* mode (agent trades from its own funded wallet within strict limits) (`docs/SETUP.md` §7)
 
-**Not yet implemented** (clearly marked in the UI): bonding-curve trading (program source in
-`onchain/`, needs to be deployed), recurring/scheduled campaigns, DEX migration.
+- **AI agents for pump.fun coins on mainnet**, paying in real USDC (explicit real-money confirmation required)
+
+**Not yet implemented** (clearly marked in the UI): bonding-curve trading for Ryven coins
+(program source in `onchain/`, needs to be deployed), recurring/scheduled campaigns, DEX migration.
 
 ## Quick start
 

@@ -14,6 +14,7 @@ export type Payment = {
   amount: string;
   unit?: string;
   asset?: "usdc" | "token";
+  network?: "devnet" | "mainnet";
   category: string;
   campaign: string;
   reason: string;
@@ -91,7 +92,7 @@ export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; on
                     {p.amount} <span className="text-xs text-muted">{p.unit ?? usdcLabel}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
-                    to <AddressLink address={p.recipient} /> · {timeAgo(p.createdAt)}
+                    to <AddressLink address={p.recipient} network={p.network} /> · {timeAgo(p.createdAt)}
                   </div>
                   <div className="mt-1 text-xs text-text/80">“{p.reason}”</div>
                   <div className="mt-1 text-[11px] text-warn">{p.policy.summary}</div>
@@ -153,7 +154,7 @@ export function PaymentsTable({ payments, onChange }: { payments: Payment[]; onC
               {timeAgo(p.createdAt)}
               {p.signature && p.status === "confirmed" && (
                 <div className="mt-1">
-                  <TxLink signature={p.signature} label="Explorer" />
+                  <TxLink signature={p.signature} label="Explorer" network={p.network} />
                 </div>
               )}
             </div>
@@ -168,7 +169,7 @@ export function PaymentsTable({ payments, onChange }: { payments: Payment[]; onC
                 {p.campaign && <div>Campaign: {p.campaign}</div>}
                 {p.signature && (
                   <div>
-                    Signature: <TxLink signature={p.signature} />
+                    Signature: <TxLink signature={p.signature} network={p.network} />
                   </div>
                 )}
                 {p.confirmedAt && <div>Confirmed: {new Date(p.confirmedAt).toLocaleString()}</div>}
@@ -271,7 +272,7 @@ export function ManualPayment({
       {error && <Alert tone="danger">{error}</Alert>}
       {result && (
         <Alert tone={result.status === "confirmed" ? "accent" : result.status === "awaiting_approval" ? "warn" : "danger"} title={result.status.replace("_", " ")}>
-          {result.status === "confirmed" && result.signature ? <TxLink signature={result.signature} label="View on Explorer" /> : result.error ?? result.policy.summary}
+          {result.status === "confirmed" && result.signature ? <TxLink signature={result.signature} label="View on Explorer" network={result.network} /> : result.error ?? result.policy.summary}
         </Alert>
       )}
     </div>
@@ -430,7 +431,7 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-faint">
             <span className={tone(a.status)}>{a.status.replace(/_/g, " ")}</span>
-            {typeof a.data?.signature === "string" && <TxLink signature={a.data.signature} />}
+            {typeof a.data?.signature === "string" && <TxLink signature={a.data.signature} network={a.data.network === "mainnet" ? "mainnet" : "devnet"} />}
           </div>
         </li>
       ))}

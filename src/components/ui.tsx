@@ -191,10 +191,10 @@ export function AddressLink({ address, chars = 4, className, network }: { addres
   );
 }
 
-export function TxLink({ signature, label }: { signature: string; label?: string }) {
+export function TxLink({ signature, label, network }: { signature: string; label?: string; network?: Network }) {
   return (
     <a
-      href={explorerTx(signature)}
+      href={explorerTx(signature, network)}
       target="_blank"
       rel="noreferrer"
       className="inline-flex items-center gap-1 font-mono text-xs text-info hover:underline"

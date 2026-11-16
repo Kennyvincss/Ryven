@@ -9,7 +9,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./db";
-import { getFeePayer, serverEnv } from "./env";
+import { getFeePayerFor, serverEnv } from "./env";
 import { buildAgentPaymentTransaction } from "../solana/payment";
 
 export type EncryptedKey = { ciphertext: string; iv: string; authTag: string };
@@ -61,8 +61,9 @@ export async function signAgentPayment(args: {
   recentBlockhash: string;
   tokenProgram: string;
   decimals: number;
+  network: "devnet" | "mainnet";
 }): Promise<{ tx: Transaction; signature: string }> {
-  const feePayer = getFeePayer();
+  const feePayer = getFeePayerFor(args.network);
   const agentKp = await loadAgentKeypair(args.agentId, args.agentSignerPubkey);
   try {
     const tx = buildAgentPaymentTransaction({

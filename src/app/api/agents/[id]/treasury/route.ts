@@ -27,7 +27,7 @@ export const GET = handler(async (req: Request, { params }: P) => {
   const policy = toPolicy(agent, treasury);
   const fmt = (v: bigint) => fromBaseUnits(v, treasury.decimals);
   const [state, snap, deposits, pending] = await Promise.all([
-    syncTreasury(treasury),
+    syncTreasury(treasury, agent.network),
     getSpendingSnapshot(id, asset),
     db.select().from(schema.treasuryDeposits).where(eq(schema.treasuryDeposits.treasuryId, treasury.id)).orderBy(desc(schema.treasuryDeposits.createdAt)).limit(20),
     db
@@ -40,6 +40,7 @@ export const GET = handler(async (req: Request, { params }: P) => {
   const fresh = await db.query.treasuries.findFirst({ where: eq(schema.treasuries.id, treasury.id) });
   return json({
     asset,
+    network: agent.network,
     unit: assetLabel(treasury),
     symbol: treasury.symbol,
     decimals: treasury.decimals,

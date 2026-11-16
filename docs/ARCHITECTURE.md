@@ -297,7 +297,7 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 10 | Recurring/scheduled campaigns | ❌ not implemented: instructions run on demand |
 | 11 | DEX migration after graduation | ❌ not implemented |
 | 13 | pump.fun launches on mainnet (PumpPortal Local API + Pinata) | ✅ implemented; tested up to mainnet simulation with real PumpPortal transactions. A real mainnet launch costs SOL and hasn't been done from this environment |
-| 14 | AI agents for mainnet coins | ❌ not implemented: agent treasuries/payments run on devnet (trading is mainnet) |
+| 14 | AI agents for mainnet (pump.fun) coins | ✅ agents, treasuries and payments are per-network (`agents.network`); mainnet uses real USDC (`EPjFW…t1v`) and the mainnet fee payer. Deploy/read/reject paths tested against mainnet; no real mainnet payment executed from this environment |
 | 15 | Agent reads holders / supply / wallet balances | ✅ live on devnet (holder fallback via transaction history when the RPC has no token index) |
 | 16 | Rewards in the agent's own token | ✅ **verified end-to-end on devnet** (`scripts/e2e-devnet.ts` step 9) + LiteSVM Token-2022 tests |
 | 17 | pump.fun trading: proposal + autonomous | ✅ implemented; tested against real PumpPortal + mainnet simulation (policy, allowlist, spend guard, duplicates, withdraw). No real mainnet trade executed from this environment (needs real SOL) |

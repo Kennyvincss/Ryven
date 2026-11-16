@@ -71,6 +71,19 @@ export function getFeePayer(): Keypair {
   return feePayer;
 }
 
+let mainnetFeePayer: Keypair | null = null;
+/**
+ * Fee payer for MAINNET agent payments (real SOL). Uses MAINNET_FEE_PAYER_SECRET_KEY if set,
+ * otherwise the same key as devnet. It must hold real SOL on mainnet.
+ */
+export function getFeePayerFor(network: "devnet" | "mainnet"): Keypair {
+  if (network === "devnet") return getFeePayer();
+  const v = process.env.MAINNET_FEE_PAYER_SECRET_KEY;
+  if (!v) return getFeePayer();
+  if (!mainnetFeePayer) mainnetFeePayer = parseSecretKey(v, "MAINNET_FEE_PAYER_SECRET_KEY");
+  return mainnetFeePayer;
+}
+
 /** Mint authority for the optional Test-USDC faucet (only if you created your own test mint). */
 export function getTestUsdcAuthority(): Keypair | null {
   const v = process.env.TEST_USDC_MINT_AUTHORITY_SECRET_KEY;

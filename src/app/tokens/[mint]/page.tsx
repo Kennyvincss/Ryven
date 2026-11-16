@@ -154,7 +154,7 @@ export default function TokenPage() {
                     </div>
                     <div className="shrink-0 text-right">
                       <PaymentStatus status={p.status} />
-                      <div className="mt-1 text-[11px] text-faint">{p.signature && <TxLink signature={p.signature} label="Explorer" />}</div>
+                      <div className="mt-1 text-[11px] text-faint">{p.signature && <TxLink signature={p.signature} label="Explorer" network={t.network} />}</div>
                     </div>
                   </li>
                 ))}
@@ -195,13 +195,9 @@ export default function TokenPage() {
                   </a>
                 )}
               </div>
-            ) : t.network === "mainnet" ? (
-              <Empty icon={<Bot className="size-5" />} title="Agents not available on mainnet yet">
-                Agent treasuries and payments run on devnet in this build. Launch a devnet token to deploy an agent.
-              </Empty>
             ) : isCreator ? (
-              <Empty icon={<Bot className="size-5" />} title="Deploy Your AI Agent" action={<Button variant="agent" href={`/launch?token=${t.mint}`}>Deploy agent</Button>}>
-                Give ${t.symbol} an autonomous agent with its own treasury and spending limits.
+              <Empty icon={<Bot className="size-5" />} title={t.network === "mainnet" ? "Deploy Your AI Agent (mainnet)" : "Deploy Your AI Agent"} action={<Button variant="agent" href={`/launch?token=${t.mint}`}>Deploy agent</Button>}>
+                Give ${t.symbol} an autonomous agent with its own treasury and spending limits.{t.network === "mainnet" ? " On mainnet it pays in real USDC." : ""}
               </Empty>
             ) : (
               <Empty icon={<Bot className="size-5" />} title="No agent yet">The creator hasn&apos;t deployed an agent for this token.</Empty>

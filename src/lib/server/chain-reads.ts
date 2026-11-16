@@ -24,7 +24,8 @@ const MAX_SIGNATURES = 300;
  * each account's CURRENT balance on-chain.
  */
 export async function getHolders(mint: string, programId: PublicKey = TOKEN_2022_PROGRAM_ID, conn: Connection = connection()): Promise<HolderReport> {
-  const hit = cache.get(mint);
+  const key = `${conn.rpcEndpoint}|${mint}`;
+  const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 60_000) return hit.report;
   let report: HolderReport;
   try {
@@ -32,7 +33,7 @@ export async function getHolders(mint: string, programId: PublicKey = TOKEN_2022
   } catch {
     report = await viaHistory(mint, conn);
   }
-  cache.set(mint, { at: Date.now(), report });
+  cache.set(key, { at: Date.now(), report });
   return report;
 }
 

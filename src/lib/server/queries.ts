@@ -49,6 +49,7 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
     status: a.status,
     pausedReason: a.pausedReason,
     mode: a.mode,
+    network: a.network,
     creatorWallet: a.creatorWallet,
     signerPubkey: a.signerPubkey,
     policy: {
@@ -110,7 +111,8 @@ export function paymentPublicView(p: Payment) {
     status: p.status,
     source: p.source,
     signature: p.signature,
-    explorerUrl: p.signature && p.status === "confirmed" ? explorerTx(p.signature) : null,
+    network: p.network,
+    explorerUrl: p.signature && p.status === "confirmed" ? explorerTx(p.signature, p.network) : null,
     policy: p.policy,
     error: p.error,
     createdAt: p.createdAt.toISOString(),
@@ -256,14 +258,20 @@ export async function platformStats() {
       volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed' and ${schema.payments.asset} = 'usdc'), 0)::text`,
       failed: sql<number>`count(*) filter (where ${schema.payments.status} = 'failed')::int`,
     })
-    .from(schema.payments);
+    .from(schema.payments)
+    .where(eq(schema.payments.network, "devnet"));
   const [treasury] = await db
     .select({
       managed: sql<string>`coalesce(sum(${schema.treasuries.lastBalance}), 0)::text`,
       deposits: sql<string>`coalesce(sum(${schema.treasuries.totalDeposits}), 0)::text`,
     })
     .from(schema.treasuries)
-    .where(eq(schema.treasuries.asset, "usdc"));
+    .where(
+      and(
+        eq(schema.treasuries.asset, "usdc"),
+        sql`${schema.treasuries.agentId} in (select id from agents where network = 'devnet')`,
+      ),
+    );
   const [users] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.users);
   return {
     tokensLaunched: tokens.n,

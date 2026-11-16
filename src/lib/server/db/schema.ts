@@ -138,6 +138,8 @@ export const agents = pgTable(
       .unique()
       .references(() => tokens.id, { onDelete: "restrict" }),
     creatorWallet: text("creator_wallet").notNull(),
+    /** Cluster the agent's treasury and payments live on (same as its token). */
+    network: networkEnum("network").notNull().default("devnet"),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     personality: text("personality").notNull().default(""),
@@ -262,6 +264,7 @@ export const payments = pgTable(
     asset: assetEnum("asset").notNull().default("usdc"),
     decimals: integer("decimals").notNull().default(6),
     symbol: text("symbol").notNull().default("USDC"),
+    network: networkEnum("network").notNull().default("devnet"),
     category: text("category").notNull(),
     campaign: text("campaign").notNull().default(""),
     reason: text("reason").notNull(),
