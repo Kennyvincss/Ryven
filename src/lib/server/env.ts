@@ -1,6 +1,7 @@
 import "server-only";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
+import { APP_NETWORK, publicConfig } from "../shared/config";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -15,7 +16,7 @@ export const serverEnv = {
     return required("DATABASE_URL");
   },
   get rpcUrl() {
-    return process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";
+    return process.env.SOLANA_RPC_URL || publicConfig.rpcUrl;
   },
   get sessionSecret() {
     const s = required("SESSION_SECRET");
@@ -43,7 +44,7 @@ export const serverEnv = {
     return process.env.PINATA_JWT || null;
   },
   get mainnetRpcUrl() {
-    return process.env.MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
+    return process.env.MAINNET_RPC_URL || (APP_NETWORK === "mainnet" ? process.env.SOLANA_RPC_URL || publicConfig.rpcUrl : "https://api.mainnet-beta.solana.com");
   },
   /** pump.fun launches need the feature flag AND Pinata (pump.fun no longer hosts metadata). */
   get pumpfunEnabled() {
@@ -74,7 +75,7 @@ export function getFeePayer(): Keypair {
 let mainnetFeePayer: Keypair | null = null;
 /**
  * Fee payer for MAINNET agent payments (real SOL). Uses MAINNET_FEE_PAYER_SECRET_KEY if set,
- * otherwise the same key as devnet. It must hold real SOL on mainnet.
+ * otherwise FEE_PAYER_SECRET_KEY. It must hold real SOL on mainnet.
  */
 export function getFeePayerFor(network: "devnet" | "mainnet"): Keypair {
   if (network === "devnet") return getFeePayer();

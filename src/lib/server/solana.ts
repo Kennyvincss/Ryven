@@ -6,7 +6,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Connection, PublicKey, type ParsedTransactionWithMeta, type VersionedTransactionResponse } from "@solana/web3.js";
-import { publicConfig } from "../shared/config";
+import { APP_NETWORK, publicConfig } from "../shared/config";
 import { serverEnv } from "./env";
 import { outboundFetch } from "./net";
 
@@ -18,10 +18,15 @@ function makeConnection(url: string) {
   });
 }
 
-let conn: Connection | null = null;
-/** The app's main cluster (devnet): agents, treasuries, payments, Ryven launches. */
+let devnetConn: Connection | null = null;
+/** Devnet: only used in test mode (or for legacy devnet records). */
+export function devnetConnection(): Connection {
+  return (devnetConn ??= makeConnection(APP_NETWORK === "devnet" ? serverEnv.rpcUrl : "https://api.devnet.solana.com"));
+}
+
+/** The app's network (mainnet by default): agents, treasuries, payments, launches. */
 export function connection(): Connection {
-  return (conn ??= makeConnection(serverEnv.rpcUrl));
+  return connectionFor(APP_NETWORK);
 }
 
 let mainnetConn: Connection | null = null;
@@ -31,7 +36,7 @@ export function mainnetConnection(): Connection {
 }
 
 export function connectionFor(network: "devnet" | "mainnet"): Connection {
-  return network === "mainnet" ? mainnetConnection() : connection();
+  return network === "mainnet" ? mainnetConnection() : devnetConnection();
 }
 
 export const usdcMint = () => new PublicKey(publicConfig.usdcMint);

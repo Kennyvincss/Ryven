@@ -4,6 +4,8 @@ import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, storeBlob } from "@/lib/server/metadata";
 import { EngineError } from "@/lib/server/engine/payments";
 import { TOKEN_LIMITS } from "@/lib/solana/launch";
+import { serverEnv } from "@/lib/server/env";
+import { APP_NETWORK, publicConfig } from "@/lib/shared/config";
 
 const url = z.union([z.literal(""), z.url().max(200)]).optional();
 const Body = z.object({
@@ -21,6 +23,12 @@ export const POST = handler(async (req: Request) => {
   const { wallet } = await requireSession();
   enforceRateLimit(req, "metadata", 10, 60_000, wallet);
   const b = Body.parse(await req.json());
+  if (APP_NETWORK === "mainnet" && !serverEnv.pinataJwt && /localhost|127\.0\.0\.1/.test(publicConfig.appUrl)) {
+    throw new EngineError(
+      "On mainnet the coin's image and metadata must be publicly reachable. Set PINATA_JWT (free at app.pinata.cloud) or deploy Ryven to a public URL (NEXT_PUBLIC_APP_URL).",
+      503,
+    );
+  }
   const m = /^data:([\w/+.-]+);base64,(.+)$/.exec(b.image);
   if (!m || !ALLOWED_IMAGE_TYPES.includes(m[1])) throw new EngineError("Image must be PNG, JPEG, GIF or WebP");
   const bytes = Buffer.from(m[2], "base64");

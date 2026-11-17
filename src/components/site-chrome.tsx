@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { WalletButton } from "./wallet-button";
 import { cn } from "./ui";
-import { publicConfig } from "@/lib/shared/config";
+import { APP_NETWORK, networkLabel } from "@/lib/shared/config";
 
 const NAV = [
   { href: "/tokens", label: "Tokens" },
@@ -56,8 +56,8 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
-          <span className="hidden rounded-full border border-warn/30 bg-warn/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-warn sm:inline">
-            {publicConfig.cluster}
+          <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-accent sm:inline">
+            {networkLabel}
           </span>
           <WalletButton />
           <button className="grid size-10 place-items-center rounded-xl border border-line-2 md:hidden" onClick={() => setOpen((o) => !o)} aria-label="Menu">
@@ -90,7 +90,10 @@ export function Footer() {
         <div>
           <Logo />
           <p className="mt-3 max-w-xs text-sm text-muted">Launch Tokens. Deploy Agents. Automate Economies. Built on Solana.</p>
-          <p className="mt-4 text-xs text-faint">Running on Solana {publicConfig.cluster}. Test funds only. Custom programs are unaudited.</p>
+          <p className="mt-4 text-xs text-faint">
+            Running on Solana {networkLabel.toLowerCase()}{APP_NETWORK === "mainnet" ? ": transactions use real SOL and USDC." : " with test funds."} Agent
+            payments use Solana&apos;s standard token program; pump.fun trades go through PumpPortal.
+          </p>
         </div>
         {cols.map((c) => (
           <div key={c.title}>

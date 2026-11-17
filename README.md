@@ -6,7 +6,7 @@ Ryven is a Solana token launchpad where every token can deploy an **autonomous A
 agent with its own treasury, spending limits and the ability to execute real USDC
 payments**, without ever handing an LLM (or the server) unrestricted access to funds.
 
-> UBC 2026 Hackathon · Agentic Payments & AI · Solana devnet
+> UBC 2026 Hackathon · Agentic Payments & AI · **Solana mainnet** (real SOL and USDC)
 
 ## Why it's different
 
@@ -24,7 +24,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - Treasury funding, on-chain allowance, revoke (kill switch), withdraw, community deposits
 - AI instruction terminal (Claude tool use) with live status streaming
 - Autonomous & approval modes, approval queue, manual payments through the same engine
-- Real USDC transfers on devnet, signature persisted before broadcast, on-chain verification of every payment
+- Real USDC transfers, signature persisted before broadcast, on-chain verification of every payment (proven end-to-end in test mode, see `docs/ARCHITECTURE.md`)
 - Token & agent discovery, public agent profiles, user dashboard, admin monitor with global kill switch
 - Optional **pump.fun launches on Solana mainnet** (real SOL) via PumpPortal: coins show on pump.fun (setup: `docs/SETUP.md` §6)
 - **Rewards in your own token**: agents can pay contributors in the launched token (e.g. $DOGE2) from a second creator-owned treasury with its own limits
@@ -54,5 +54,5 @@ npm run dev
 
 ```bash
 npm test                          # policy engine + LiteSVM on-chain guarantees
-npx tsx scripts/e2e-devnet.ts     # full demo against a running server on devnet
+npx tsx scripts/e2e-devnet.ts     # full end-to-end test (test mode only; refuses to run on mainnet)
 ```

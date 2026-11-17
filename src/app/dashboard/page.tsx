@@ -4,7 +4,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Bot, Coins, Compass, Droplets, History, Rocket, Wallet } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useApi, useAppConfig, useWalletBalances } from "@/lib/client/hooks";
-import { usdcLabel, publicConfig } from "@/lib/shared/config";
+import { usdcLabel, publicConfig, networkLabel } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
 import { AgentCard, TokenCard, type AgentListItem, type TokenListItem } from "@/components/cards";
 import { AuthGate } from "@/components/wallet-button";
@@ -30,7 +30,7 @@ function Inner() {
           <div className="text-[11px] font-medium uppercase tracking-wider text-faint">Wallet</div>
           <div className="mt-1"><AddressLink address={wallet} chars={8} className="text-sm" /></div>
         </div>
-        <Stat label="SOL" value={bal.sol === null ? "—" : bal.sol.toFixed(3)} hint={publicConfig.cluster} />
+        <Stat label="SOL" value={bal.sol === null ? "—" : bal.sol.toFixed(3)} hint={networkLabel} />
         <Stat label={usdcLabel} value={bal.usdc ?? "—"} />
         <Stat label="Treasury funding" value={totalTreasury.toLocaleString()} hint="across your agents" accent />
         <Stat label="Agent payments" value={totalPaid.toLocaleString()} hint={`${usdcLabel} paid`} />
@@ -63,8 +63,15 @@ function Inner() {
       </div>
       {faucet.msg && <Alert tone={faucet.sig ? "accent" : "danger"}>{faucet.msg} {faucet.sig && <TxLink signature={faucet.sig} />}</Alert>}
       {bal.sol !== null && bal.sol < 0.01 && (
-        <Alert tone="warn" title="Low devnet SOL">
-          You need a little devnet SOL for transaction fees. Get some free at <a className="underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">faucet.solana.com</a>.
+        <Alert tone="warn" title="Low SOL">
+          {publicConfig.cluster === "devnet" ? (
+            <>
+              You need a little test SOL for fees. Get some at{" "}
+              <a className="underline" href="https://faucet.solana.com" target="_blank" rel="noreferrer">faucet.solana.com</a>.
+            </>
+          ) : (
+            <>You need a little SOL (about 0.05) in this wallet for transaction fees and account rent.</>
+          )}
         </Alert>
       )}
 

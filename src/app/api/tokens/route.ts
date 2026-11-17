@@ -7,7 +7,7 @@ import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { listTokens, tokenView } from "@/lib/server/queries";
 import { connection, getConfirmedTransaction, txSigners } from "@/lib/server/solana";
 import { EngineError } from "@/lib/server/engine/payments";
-import { LAUNCH_TOKEN_DECIMALS } from "@/lib/shared/config";
+import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS } from "@/lib/shared/config";
 
 export const GET = handler(async (req: Request) => {
   const u = new URL(req.url);
@@ -73,6 +73,7 @@ export const POST = handler(async (req: Request) => {
       totalSupply: mint.supply,
       launchMode: "fixed_supply",
       launchStatus: "live",
+      network: APP_NETWORK,
       launchSignature: b.signature,
       website: b.website || null,
       twitter: b.twitter || null,

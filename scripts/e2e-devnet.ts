@@ -66,6 +66,9 @@ function assert(c: unknown, m: string): asserts c {
 }
 
 async function main() {
+  if (process.env.NEXT_PUBLIC_SOLANA_CLUSTER !== "devnet") {
+    throw new Error("This test spends funds and only runs in test mode: set NEXT_PUBLIC_SOLANA_CLUSTER=devnet (and a devnet Test-USDC mint) in .env.");
+  }
   const creator = Keypair.generate();
   const contributors = [Keypair.generate(), Keypair.generate(), Keypair.generate(), Keypair.generate()];
   console.log("Creator wallet:", creator.publicKey.toBase58());

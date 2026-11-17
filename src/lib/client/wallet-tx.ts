@@ -32,7 +32,7 @@ export function friendlyError(e: unknown): string {
   const msg = err?.message ?? String(e);
   if (/User rejected|rejected the request|declined/i.test(msg)) return "You rejected the transaction in your wallet.";
   if (e instanceof SendTransactionError || /insufficient/i.test(msg)) {
-    if (/insufficient lamports|0x1\b|Attempt to debit/i.test(msg)) return "Not enough SOL for fees/rent. Get devnet SOL at faucet.solana.com.";
+    if (/insufficient lamports|0x1\b|Attempt to debit/i.test(msg)) return "Not enough SOL in your wallet for fees/rent.";
     if (/insufficient funds/i.test(msg)) return "Insufficient token balance for this transaction.";
   }
   return msg.length > 300 ? msg.slice(0, 300) + "…" : msg;

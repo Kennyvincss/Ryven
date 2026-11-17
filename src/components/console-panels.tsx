@@ -431,7 +431,7 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-faint">
             <span className={tone(a.status)}>{a.status.replace(/_/g, " ")}</span>
-            {typeof a.data?.signature === "string" && <TxLink signature={a.data.signature} network={a.data.network === "mainnet" ? "mainnet" : "devnet"} />}
+            {typeof a.data?.signature === "string" && <TxLink signature={a.data.signature} network={a.data.network === "mainnet" || a.data.network === "devnet" ? a.data.network : undefined} />}
           </div>
         </li>
       ))}

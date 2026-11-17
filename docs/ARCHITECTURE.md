@@ -1,7 +1,10 @@
 # RYVEN: Architecture
 
 > **Launch Tokens. Deploy Agents. Automate Economies.**
-> Category: Agentic Payments & AI · Chain: Solana (Devnet) · Payment asset: USDC (SPL)
+> Category: Agentic Payments & AI · Chain: **Solana mainnet** · Payment asset: USDC (SPL)
+>
+> Network: the app runs on mainnet by default (`APP_NETWORK`). A hidden test mode
+> (`NEXT_PUBLIC_SOLANA_CLUSTER=devnet`) exists only for the automated end-to-end test.
 
 Ryven is a token launchpad where every token can deploy an AI agent with its own
 treasury, spending limits and the ability to execute real USDC payments on Solana,
@@ -53,7 +56,7 @@ This document covers, in order:
 └───────┬──────────────────────────────┬───────────────────────────┘
         │ SQL                          │ JSON-RPC
 ┌───────▼────────┐            ┌────────▼──────────────────────────┐
-│ PostgreSQL     │            │ Solana Devnet                     │
+│ PostgreSQL     │            │ Solana mainnet                    │
 │ (Supabase ok)  │            │  SPL Token · Token-2022 · Memo ·  │
 │ records + logs │            │  Associated Token Account ·       │
 │ NOT proof of   │            │  ryven_curve (Anchor, optional)   │
@@ -134,13 +137,13 @@ after the transaction is fetched from the chain and its token-balance deltas mat
 
 | Service | Used for | Required? | Where to get it |
 |---|---|---|---|
-| Solana Devnet RPC | all chain reads/writes | yes | public `https://api.devnet.solana.com` (rate-limited) or Helius/QuickNode/Triton devnet URL |
+| Solana mainnet RPC | all chain reads/writes | yes | public `https://api.mainnet-beta.solana.com` (rate-limited) or a Helius/QuickNode/Triton URL (recommended) |
 | Anthropic Claude API | agent reasoning + tool use | yes, for the AI terminal | console.anthropic.com → API Keys |
 | PostgreSQL | app data | yes | local Postgres, or Supabase (Project → Settings → Database → connection string) |
 | PumpPortal | builds pump.fun create transactions (mainnet) | only for pump.fun launches | no key needed (https://pumpportal.fun/creation) |
 | Pinata (IPFS) | token image + metadata pinning | optional (required for pump.fun) | app.pinata.cloud → API Keys → JWT. Without it, metadata is served by the app (clearly labelled) |
-| Circle devnet USDC | treasury asset | yes (or Test USDC) | faucet.circle.com (Solana Devnet). Alternatively `scripts/create-test-usdc.ts` creates a *labelled* Test-USDC mint with a faucet |
-| Solana faucet | devnet SOL for fees | yes | faucet.solana.com |
+| USDC (Circle, mainnet `EPjFW…t1v`) | treasury asset | yes | buy/swap in any wallet or exchange |
+| SOL | fees, rent, launches | yes | buy in any wallet or exchange |
 
 ## 5. Blockchain architecture
 
@@ -279,7 +282,7 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 * Rate limiting on auth, terminal and payment routes.
 * Secrets only in server env vars; `NEXT_PUBLIC_*` contains nothing sensitive.
 * Global emergency pause (admin) and per-agent pause (creator / agent itself).
-* Custom programs (bonding curve) are devnet-only and unaudited. Never use them with real funds.
+* The bonding-curve program is unaudited and not deployed; agent payments only use the standard SPL Token / Token-2022 programs.
 
 ## 9. Development roadmap & status
 
@@ -304,7 +307,7 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 | 18 | Database auto-migration on dev startup | ✅ |
 | 12 | Distributed rate limiting | ❌ in-memory only (single instance) |
 
-### Devnet end-to-end run (2026-11-13)
+### End-to-end run in test mode (devnet, 2026-11-13)
 
 `scripts/e2e-devnet.ts` against a running server, with a labelled Test-USDC mint
 (`EuQ8X7hWTG9ZFx5qHofg6tFr747rYwJXcJpSr4mfqTKu`). Every step was a real devnet transaction or API call:

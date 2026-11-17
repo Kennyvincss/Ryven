@@ -9,7 +9,7 @@ import { sendWalletTransaction } from "@/lib/client/wallet-tx";
 import { useAppConfig } from "@/lib/client/hooks";
 import { buildLaunchTransaction, TOKEN_LIMITS } from "@/lib/solana/launch";
 import { toBaseUnits } from "@/lib/shared/amounts";
-import { LAUNCH_TOKEN_DECIMALS, explorerTx, pumpFunCoinUrl } from "@/lib/shared/config";
+import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS, explorerTx, networkLabel, pumpFunCoinUrl } from "@/lib/shared/config";
 import { AuthGate } from "@/components/wallet-button";
 import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
 import { FundTreasury } from "@/components/treasury-actions";
@@ -211,8 +211,8 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                   onClick={() => setMode("ryven")}
                   className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", mode === "ryven" ? "border-accent/50 bg-accent/5" : "border-line hover:bg-panel-2")}
                 >
-                  <div className="font-medium">Ryven · devnet (free test)</div>
-                  <div className="text-xs text-muted">Fixed supply minted to you, mint authority revoked. Supports AI agents.</div>
+                  <div className="font-medium">Ryven · fixed supply</div>
+                  <div className="text-xs text-muted">Full supply minted to you, mint authority revoked forever. Supports AI agents.</div>
                 </button>
                 {config?.pumpfunEnabled ? (
                   <button
@@ -277,7 +277,9 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
           <p className="text-center text-xs text-faint">
             {mode === "pumpfun"
               ? "Your wallet shows the exact transaction before you sign."
-              : "Costs roughly 0.005 devnet SOL in rent + fees. Your wallet will show the transaction before signing."}
+              : APP_NETWORK === "mainnet"
+                ? "Uses real SOL: roughly 0.005 SOL in rent + fees. Your wallet shows the transaction before signing."
+                : "Costs roughly 0.005 test SOL in rent + fees. Your wallet will show the transaction before signing."}
           </p>
         </div>
       </div>
@@ -464,7 +466,7 @@ function LaunchFlow() {
 export default function LaunchPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <PageHeader eyebrow="Launchpad" title="Launch a token & deploy its agent" subtitle="Three wallet-approved steps. Everything is recorded on Solana devnet." />
+      <PageHeader eyebrow="Launchpad" title="Launch a token & deploy its agent" subtitle={`Three wallet-approved steps, recorded on Solana ${networkLabel.toLowerCase()}.${APP_NETWORK === "mainnet" ? " Real SOL and USDC." : ""}`} />
       <AuthGate reason="Launching a token and deploying an agent require a signed-in wallet. Signing in is free and sends no transaction.">
         <Suspense fallback={<Spinner />}>
           <LaunchFlow />

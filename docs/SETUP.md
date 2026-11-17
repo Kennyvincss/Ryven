@@ -1,27 +1,21 @@
 # Ryven setup guide (beginner friendly)
 
 This guide assumes no backend or blockchain experience. Follow it top to bottom.
-It takes about 20 minutes. Everything runs on **Solana devnet**, where coins are free test
-coins with no real value.
+
+> **Ryven runs on Solana mainnet.** Launching coins, funding agents and agent payments use
+> **real SOL and real USDC** and can't be undone. Start with small amounts.
 
 ---
 
-## 0. What you need installed
+## 0. What you need
 
 | Tool | Why | How to get it |
 |---|---|---|
 | **Node.js 20+** (22 recommended) | runs the app | https://nodejs.org → download the LTS installer |
-| **PostgreSQL 15+** | the app's database | Local: https://www.postgresql.org/download/ **or** a free hosted DB at https://supabase.com |
-| **Phantom** or **Solflare** browser extension | your wallet | https://phantom.app / https://solflare.com |
+| **PostgreSQL** | the app's database | free hosted DB at https://supabase.com (or local Postgres) |
+| **Phantom** or **Solflare** | your wallet | https://phantom.app / https://solflare.com |
 | **Git** | to download the code | https://git-scm.com |
-
-Check Node is installed by opening a terminal and running:
-
-```bash
-node -v
-```
-
-You should see `v20` or higher.
+| **A little SOL and USDC** | fees, launches, agent treasuries | buy in Phantom (or any exchange) |
 
 ---
 
@@ -43,88 +37,65 @@ npm install
 
 ## 2. Create your `.env` file
 
-The `.env` file holds your settings and secrets. It is **never** committed to Git.
-
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` in any text editor. Fill it in using the steps below.
+(Windows: `copy .env.example .env`.) Open `.env` in VS Code and fill it in as below.
 
-### 2a. Generate the server secrets
+### 2a. Server secrets
 
 ```bash
 npm run keys
 ```
 
-This prints three lines (`SESSION_SECRET=…`, `AGENT_KEY_ENCRYPTION_KEY=…`,
-`FEE_PAYER_SECRET_KEY=…`) plus a **fee payer public address**. Paste the three lines
-into `.env`, replacing the empty ones.
+Paste the three printed lines (`SESSION_SECRET`, `AGENT_KEY_ENCRYPTION_KEY`,
+`FEE_PAYER_SECRET_KEY`) into `.env`. Keep the printed **fee payer address**.
 
-> **Keep `AGENT_KEY_ENCRYPTION_KEY` safe.** It encrypts every agent's signing key. If you
-> lose it, existing agents can no longer make payments (their funds stay safe in the
-> creator's treasury, and the creator can still withdraw).
+> Keep `AGENT_KEY_ENCRYPTION_KEY` safe: it encrypts every agent's signing key.
 
-### 2b. Fund the fee payer with devnet SOL
+### 2b. Fund the fee payer (real SOL)
 
-The fee payer pays the tiny network fees (~0.000005 SOL) for agent payments.
-
-1. Copy the **fee payer public address** printed by `npm run keys`.
-2. Go to https://faucet.solana.com, paste the address, choose **Devnet**, request 1 SOL.
+The fee payer pays the network fees of agent payments (~0.000005 SOL each, plus ~0.002 SOL
+the first time a wallet receives a token). From Phantom, send **about 0.05 SOL** to the fee
+payer address.
 
 ### 2c. Database
 
-**Option A: local Postgres.** Create a database and user:
-
-```bash
-psql -U postgres -c "CREATE USER ryven WITH PASSWORD 'ryven' CREATEDB;"
-```
-
-```bash
-psql -U postgres -c "CREATE DATABASE ryven OWNER ryven;"
-```
-
-Then in `.env`: `DATABASE_URL=postgres://ryven:ryven@localhost:5432/ryven`
-
-**Option B: Supabase (no install).** Create a project at https://supabase.com →
-*Project Settings → Database → Connection string → URI*. Copy it (replace `[YOUR-PASSWORD]`)
-into `DATABASE_URL`.
-
-Create the tables:
+Supabase: create a project → **Connect** → **Direct** → **Session pooler** → copy the string
+into `DATABASE_URL` (replace `[YOUR-PASSWORD]`, remove the brackets). Then:
 
 ```bash
 npm run db:migrate
 ```
 
-### 2d. AI key (Anthropic Claude)
+It should say **"Migrations applied successfully"**. (The app also updates the database by
+itself whenever it starts in development.)
 
-1. Go to https://console.anthropic.com → sign up → **API Keys** → **Create Key**.
-2. Paste it into `.env` as `ANTHROPIC_API_KEY=sk-ant-…`.
+### 2d. RPC (strongly recommended)
 
-Without this key the app still works, but the agent terminal will tell you AI is not
-configured. You can still send payments manually through the same policy engine.
+The public Solana RPC is heavily rate-limited. Create a free account at https://helius.dev,
+copy your **mainnet RPC URL** and set it in `.env`:
 
-### 2e. Devnet USDC
+```
+NEXT_PUBLIC_SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=...
+```
 
-Agents pay in USDC. On devnet you have two options:
+### 2e. IPFS for coin images (Pinata)
 
-- **Circle devnet USDC (recommended, default):** go to https://faucet.circle.com, pick
-  **Solana Devnet**, paste *your Phantom wallet address*, and request USDC. Leave
-  `NEXT_PUBLIC_USDC_MINT` at its default.
-- **Your own "Test USDC":** if the Circle faucet doesn't work for you, run
+On mainnet, a coin's image and metadata must be publicly reachable. While running on your
+computer, use Pinata: https://app.pinata.cloud → **API Keys** → **New Key** (Admin) → copy
+the JWT into `PINATA_JWT=`.
 
-  ```bash
-  npm run test-usdc
-  ```
+### 2f. AI key (Anthropic)
 
-  and copy the printed lines into `.env` (`NEXT_PUBLIC_USDC_MINT`,
-  `TEST_USDC_FAUCET_ENABLED=true`, and `TEST_USDC_MINT_AUTHORITY_SECRET_KEY` set to the same
-  value as `FEE_PAYER_SECRET_KEY`). The dashboard then shows a **Get 100 Test USDC**
-  button. The UI labels this currency "Test USDC" so nobody mistakes it for Circle's.
+https://console.anthropic.com → **API Keys** → **Create Key** → put it in `ANTHROPIC_API_KEY=`.
+Add a few dollars under **Billing** (API credit is separate from a Claude subscription).
 
-### 2f. Admin access (optional)
+### 2g. Optional
 
-Put your wallet address in `ADMIN_WALLETS=` to unlock `/admin` (global payment kill switch).
+- `PUMPFUN_ENABLED=true` adds **pump.fun** launches (needs `PINATA_JWT`).
+- `ADMIN_WALLETS=<your wallet>` unlocks `/admin` (global payment kill switch).
 
 ---
 
@@ -134,153 +105,72 @@ Put your wallet address in `ADMIN_WALLETS=` to unlock `/admin` (global payment k
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. Check http://localhost:3000/api/config shows
+`"network":"mainnet"`, `"aiEnabled":true`.
 
-### Set your wallet to devnet
-
-- **Phantom:** Settings → Developer Settings → *Testnet Mode* ON → Solana **Devnet**.
-- **Solflare:** Settings → Network → **Devnet**.
-
-Get devnet SOL for your own wallet at https://faucet.solana.com (you need ~0.05 SOL to
-launch a token and create a treasury).
+In Phantom make sure **Testnet Mode is OFF** (Settings → Developer Settings), so the wallet
+is on Solana **Mainnet**.
 
 ---
 
-## 4. Check everything works
+## 4. Use it
+
+1. **Connect wallet** → click your address → **Sign in** (free, no transaction).
+2. **Launch** → fill in your coin → choose **Ryven · fixed supply** (or **pump.fun**) →
+   approve in Phantom (~0.005 SOL for Ryven, ~0.02–0.03 SOL for pump.fun).
+3. **Deploy agent** → set limits → tick the real-money box → **Deploy agent**.
+4. **Fund the treasury** with USDC and set the agent's allowance (start small, e.g. 5–10).
+5. Console → **Contributors** → add wallets the agent may pay.
+6. Type an instruction in the terminal, e.g.
+   *"Reward three approved community contributors with 1 USDC each."*
+
+### Rewards in your own coin
+
+Console → **Permissions** → **Rewards in $YOURCOIN** → Enabled → Save. Then **Treasury** →
+**$YOURCOIN rewards** → **Fund**.
+
+### Trading on pump.fun
+
+Console → **Permissions** → **pump.fun trading**:
+- **Proposals** (safer): the agent proposes trades; you sign each in the **Trading** tab.
+- **Autonomous** (risky): the agent trades from its **own trading wallet** (address in the
+  Trading tab). Send it only what you're fine losing. **Withdraw everything to me** pulls it
+  all back.
+
+Every trade is checked before signing: your limits, the coin allowlist, the programs it
+calls, and a mainnet simulation that refuses it if the wallet would lose more than the trade
+amount plus 10% slippage and fees. In autonomous mode the agent's key is held (encrypted) by
+your Ryven server, so a compromised server could misuse whatever is in that trading wallet.
+
+---
+
+## 5. Deploying publicly (Vercel + Supabase)
+
+1. Import the GitHub repo at https://vercel.com/new.
+2. Add every variable from your `.env` under *Settings → Environment Variables*. Set
+   `NEXT_PUBLIC_APP_URL` to your Vercel URL.
+3. Run `npm run db:migrate` once from your computer against the Supabase database.
+4. The built-in rate limiter is in-memory; for multiple server instances, back it with Redis.
+
+---
+
+## 6. Tests (for developers)
 
 ```bash
 npm test
 ```
 
-This runs the policy-engine tests and the LiteSVM tests that execute Ryven's real
-treasury transactions against the real SPL Token program.
-
-Full end-to-end on devnet (needs the Test-USDC setup from 2e and a funded fee payer):
-
-```bash
-npm run dev
-```
-
-Then, in a second terminal:
-
-```bash
-npx tsx scripts/e2e-devnet.ts
-```
+Unit tests (policy engines) and LiteSVM tests (real token-program transactions, in memory),
+no money involved. `scripts/e2e-devnet.ts` is a full end-to-end test that only runs in the
+hidden test mode (`NEXT_PUBLIC_SOLANA_CLUSTER=devnet` with a test USDC mint); it refuses to
+run against mainnet.
 
 ---
 
-## 5. Deploying (e.g. Vercel + Supabase)
+## 7. Bonding-curve program (optional, not deployed)
 
-1. Push the repo to GitHub, import it at https://vercel.com/new.
-2. In Vercel → *Settings → Environment Variables*, add every variable from your `.env`.
-   Set `NEXT_PUBLIC_APP_URL` to your Vercel URL.
-3. Use a hosted Postgres (Supabase / Neon) for `DATABASE_URL`; run `npm run db:migrate`
-   once from your computer against it.
-4. Note: the built-in rate limiter is in-memory (per server instance). For multi-instance
-   production, back it with Redis.
-
----
-
-## 6. Optional: launch coins on pump.fun (mainnet, real SOL)
-
-This adds a **"pump.fun · mainnet"** choice on the Launch page. Coins launched this way
-are created by pump.fun's own program (through PumpPortal's API) on Solana **mainnet**, so
-they appear on pump.fun. **It costs real SOL** (about 0.02–0.03 SOL plus any dev buy).
-
-1. Create a free Pinata account at https://app.pinata.cloud → **API Keys** → **New Key**
-   (admin permissions are simplest) → copy the **JWT**. pump.fun no longer hosts metadata,
-   so this is required.
-2. In `.env` set:
-   ```
-   PINATA_JWT=<your JWT>
-   PUMPFUN_ENABLED=true
-   ```
-3. Restart the app (Ctrl+C, then `npm run dev`).
-4. In Phantom, switch to **Solana Mainnet** (turn **Testnet Mode** off) and make sure the
-   wallet has a little real SOL.
-5. Go to **Launch** → choose **pump.fun · mainnet** → fill in the coin → tick the
-   confirmation box → **Launch on pump.fun**.
-
-What Ryven does for safety: before you sign, it checks the transaction PumpPortal built
-(only your wallet and the new mint sign it; it only calls pump.fun and standard Solana
-programs) and simulates it on mainnet. PumpPortal charges 0.5% on the dev buy.
-
-Not supported yet: AI agents for mainnet coins (agents run on devnet in this build).
-
----
-
-## 7. Optional: rewards in your own token, and agent trading
-
-### AI agents for pump.fun coins (mainnet, REAL USDC)
-
-After launching a coin on pump.fun (§6), the success screen continues with **Deploy agent**
-(or open the coin's Ryven page → **Deploy Your AI Agent (mainnet)**).
-
-1. Fill in the agent and its limits, tick **"I understand this agent moves real money"**,
-   **Deploy agent**.
-2. **Fund the treasury** with real USDC and set an allowance (Phantom on **Mainnet**). The
-   treasury is a USDC account you own; the agent can only spend the allowance.
-3. The server's **fee payer** pays the network fees of the agent's payments, so it needs a
-   little **real SOL on mainnet** (about 0.000005 SOL per payment, plus about 0.002 SOL the
-   first time someone receives USDC). Send SOL to the fee payer address shown by
-   `npm run keys`, or set a separate `MAINNET_FEE_PAYER_SECRET_KEY`.
-
-Everything else (limits, approvals, pause, revoke, withdraw, token rewards, trading) works
-the same as on devnet, just with real money. Start with small amounts.
-
-### Rewards paid in your token
-
-1. Open your agent's console → **Permissions** → **Rewards in $YOURTOKEN** → tick **Enabled**,
-   set the limits, **Save token rewards**.
-2. On the **Treasury** card click the **$YOURTOKEN rewards** tab → **Fund** → deposit some of
-   your tokens and set an allowance → approve in your wallet.
-3. Ask the agent, e.g. *"Reward @alice with 1000 DOGE2"*, or use **Manual payment** →
-   **Pay in $YOURTOKEN**.
-
-### Trading on pump.fun (mainnet, REAL SOL)
-
-Needs the pump.fun setup from §6 (no Pinata key needed for trading itself).
-
-1. Console → **Permissions** → **pump.fun trading** → choose a mode:
-   - **Proposals** (safer): the agent proposes trades; you sign each one in your wallet from
-     the **Trading** tab.
-   - **Autonomous** (risky): the agent trades by itself from its **own trading wallet**. Its
-     address is shown in the **Trading** tab; send it only as much SOL as you're fine losing.
-2. Set **Max SOL per trade**, **Daily SOL limit**, and the **allowed coins** (pump.fun mint
-   addresses). The agent can't trade anything else.
-3. Switch Phantom to **Mainnet** to sign trades.
-4. Ask the agent, e.g. *"Buy 0.01 SOL of <coin address>"* or *"Sell 50% of <coin>"*.
-5. **Trading → Withdraw everything to me** sends every token and all SOL from the agent's
-   trading wallet back to your wallet.
-
-Every trade is checked by Ryven before it's signed: your limits, the coin allowlist, the
-programs it calls, and a mainnet simulation that refuses it if the wallet would lose more than
-the trade amount plus 10% slippage and fees. In autonomous mode the agent's key is held
-(encrypted) by your Ryven server, so a compromised server could misuse whatever SOL is in
-that trading wallet. Keep it small.
-
----
-
-## 8. Optional: deploying the bonding-curve program
-
-Bonding-curve trading needs the Anchor program in `onchain/`. It is **devnet-only and
-unaudited**. Requirements: Rust, the Solana CLI (https://solana.com/docs/intro/installation)
-and Anchor 0.32.
-
-```bash
-cd onchain
-```
-
-```bash
-anchor build
-```
-
-```bash
-anchor deploy --provider.cluster devnet
-```
-
-Put the printed program ID into `NEXT_PUBLIC_CURVE_PROGRAM_ID`. Trading UI integration for
-the curve is **not enabled in this build** (see `docs/ARCHITECTURE.md` roadmap).
+The Anchor program in `onchain/` is **unaudited** and the UI doesn't use it. Don't deploy it
+to mainnet with real funds without an audit.
 
 ---
 
@@ -288,9 +178,10 @@ the curve is **not enabled in this build** (see `docs/ARCHITECTURE.md` roadmap).
 
 | Symptom | Fix |
 |---|---|
-| "Missing required environment variable …" | Fill that variable in `.env`, restart `npm run dev`. |
-| "Not enough SOL for fees/rent" | Get devnet SOL at https://faucet.solana.com for the wallet shown. |
-| Payment "Rejected by Solana simulation" | Usually the fee payer has no SOL, or the treasury allowance is used up. Top up the allowance from the console's **Fund** panel. |
-| Payment rejected "Creator has not delegated" | Open the console → **Fund** → set an allowance. |
-| Wallet shows mainnet | Switch your wallet to Devnet (step 3). |
-| 429 errors from RPC | Public devnet RPC is rate-limited; use a free Helius/QuickNode devnet URL in `NEXT_PUBLIC_SOLANA_RPC_URL`. |
+| "Missing required environment variable …" | Fill it in `.env`, restart `npm run dev`. |
+| "Not enough SOL in your wallet" | Add a little SOL to the wallet shown. |
+| Payment "Rejected by Solana simulation" | The fee payer may have no SOL, or the allowance is used up: top it up from **Fund**. |
+| "Creator has not delegated" | Console → **Fund** → set an allowance. |
+| Launch says metadata must be publicly reachable | Set `PINATA_JWT` (§2e). |
+| 429 / "Too many requests" | Use a Helius RPC URL (§2d). |
+| "The database is out of date" | Run `npm run db:migrate`, restart. |

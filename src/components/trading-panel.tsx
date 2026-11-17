@@ -231,7 +231,7 @@ export function TokenRewardSettings({
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled
         </label>
       </div>
-      <p className="text-xs text-muted">Let the agent pay contributors in your own token, with its own limits and on-chain allowance (devnet).</p>
+      <p className="text-xs text-muted">Let the agent pay contributors in your own token, with its own limits and on-chain allowance.</p>
       {enabled && (
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Max per payment" hint={`$${symbol}`}>

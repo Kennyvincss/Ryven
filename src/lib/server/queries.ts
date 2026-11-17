@@ -2,7 +2,7 @@ import "server-only";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "./db";
 import { fromBaseUnits } from "../shared/amounts";
-import { USDC_DECIMALS, explorerTx } from "../shared/config";
+import { APP_NETWORK, USDC_DECIMALS, explorerTx } from "../shared/config";
 
 type Agent = typeof schema.agents.$inferSelect;
 type Token = typeof schema.tokens.$inferSelect;
@@ -163,14 +163,14 @@ export async function agentStats(agentIds: string[]): Promise<Map<string, AgentS
 }
 
 export async function listAgents(opts: { sort?: string; creator?: string; limit?: number }) {
-  const conds = [];
+  const conds = [eq(schema.agents.network, APP_NETWORK)];
   if (opts.creator) conds.push(eq(schema.agents.creatorWallet, opts.creator));
   const rows = await db
     .select({ agent: schema.agents, treasury: schema.treasuries, token: schema.tokens })
     .from(schema.agents)
     .leftJoin(schema.treasuries, and(eq(schema.treasuries.agentId, schema.agents.id), eq(schema.treasuries.asset, "usdc")))
     .innerJoin(schema.tokens, eq(schema.tokens.id, schema.agents.tokenId))
-    .where(conds.length ? and(...conds) : undefined)
+    .where(and(...conds))
     .orderBy(desc(schema.agents.createdAt))
     .limit(Math.min(opts.limit ?? 60, 200));
   const stats = await agentStats(rows.map((r) => r.agent.id));
@@ -197,9 +197,8 @@ export async function listAgents(opts: { sort?: string; creator?: string; limit?
 }
 
 export async function listTokens(opts: { sort?: string; creator?: string; limit?: number }) {
-  const conds = [eq(schema.tokens.launchStatus, "live")];
+  const conds = [eq(schema.tokens.launchStatus, opts.sort === "graduated" ? "graduated" : "live"), eq(schema.tokens.network, APP_NETWORK)];
   if (opts.creator) conds.push(eq(schema.tokens.creatorWallet, opts.creator));
-  if (opts.sort === "graduated") conds[0] = eq(schema.tokens.launchStatus, "graduated");
   const rows = await db
     .select({ token: schema.tokens, agent: schema.agents })
     .from(schema.tokens)
@@ -248,10 +247,14 @@ export async function listTokens(opts: { sort?: string; creator?: string; limit?
 }
 
 export async function platformStats() {
-  const [tokens] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.tokens).where(eq(schema.tokens.launchStatus, "live"));
+  const [tokens] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.tokens)
+    .where(and(eq(schema.tokens.launchStatus, "live"), eq(schema.tokens.network, APP_NETWORK)));
   const [agents] = await db
     .select({ n: sql<number>`count(*)::int`, active: sql<number>`count(*) filter (where ${schema.agents.status} = 'active')::int` })
-    .from(schema.agents);
+    .from(schema.agents)
+    .where(eq(schema.agents.network, APP_NETWORK));
   const [payments] = await db
     .select({
       n: sql<number>`count(*) filter (where ${schema.payments.status} = 'confirmed')::int`,
@@ -259,7 +262,7 @@ export async function platformStats() {
       failed: sql<number>`count(*) filter (where ${schema.payments.status} = 'failed')::int`,
     })
     .from(schema.payments)
-    .where(eq(schema.payments.network, "devnet"));
+    .where(eq(schema.payments.network, APP_NETWORK));
   const [treasury] = await db
     .select({
       managed: sql<string>`coalesce(sum(${schema.treasuries.lastBalance}), 0)::text`,
@@ -269,7 +272,7 @@ export async function platformStats() {
     .where(
       and(
         eq(schema.treasuries.asset, "usdc"),
-        sql`${schema.treasuries.agentId} in (select id from agents where network = 'devnet')`,
+        sql`${schema.treasuries.agentId} in (select id from agents where network = ${APP_NETWORK})`,
       ),
     );
   const [users] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.users);

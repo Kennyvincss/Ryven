@@ -25,8 +25,8 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const conn = isMainnet ? mainnetConnection() : connection();
   const [onchain, holders, trades] = await Promise.all([
     getMint(conn, new PublicKey(mint), "confirmed", new PublicKey(token.tokenProgram)).catch(() => null),
-    // Counting holders needs getProgramAccounts, which public mainnet RPC doesn't allow.
-    isMainnet ? Promise.resolve(null) : holderCount(mint, new PublicKey(token.tokenProgram)),
+    // Uses an indexed RPC when available, else rebuilds holders from recent transactions.
+    holderCount(mint, new PublicKey(token.tokenProgram), conn),
     db.select().from(schema.tokenTrades).where(eq(schema.tokenTrades.tokenId, token.id)).orderBy(desc(schema.tokenTrades.blockTime)).limit(100),
   ]);
   return json({

@@ -1,10 +1,10 @@
 # Hackathon demo: $DOGE2 and DOGE2 Assistant
 
-Total time: ~6 minutes. Every transaction is a real Solana devnet transaction you can
-open on Solana Explorer.
+Total time: ~6 minutes. Every transaction is a real Solana **mainnet** transaction you can
+open on Solana Explorer. It uses real money, so the amounts below are kept small.
 
-**Before you start:** wallet on Devnet with ~0.1 SOL and 100 devnet USDC (see SETUP.md
-§2e), plus three contributor wallet addresses. You can create extra accounts in Phantom
+**Before you start:** Phantom on Mainnet with ~0.05 SOL and ~20 USDC, the fee payer funded with
+~0.05 SOL (see SETUP.md §2b), plus three contributor wallet addresses. You can create extra accounts in Phantom
 for these.
 
 | # | Action | What judges see |
@@ -13,13 +13,13 @@ for these.
 | 2 | **Launch** → name `Doge Two`, symbol `DOGE2`, image → **Launch token** → approve | Token-2022 mint with on-chain metadata; launch tx link; mint authority "Revoked" |
 | 3 | **Deploy agent**: name `DOGE2 Assistant`, objective "Manage community rewards…" | Agent identity, delegate key, treasury address |
 | 4 | Limits: **Autonomous**, max per payment **5**, autonomous up to **5**, daily **20**, category *Community rewards*, *Approved contributors only* | Policy form |
-| 5 | **Fund treasury**: deposit **100**, allowance **100** → approve | One tx: create treasury (owned by you), deposit, delegate. Console shows **100 on-chain** |
+| 5 | **Fund treasury**: deposit **20**, allowance **20** → approve | One tx: create treasury (owned by you), deposit, delegate. Console shows **20 on-chain** |
 | 6 | Console → **Contributors** → add the three wallets (`alice`, `bob`, `carol`) | Verifiable recipient registry, also on the public profile |
 | 7 | Terminal: *"Reward three approved community contributors with 5 USDC each."* | Live statuses: Thinking → Analysing → Checking permissions → Preparing payment → Executing → Completed |
 | 8 | Payment engine runs | Each payment card shows the policy result (balance, daily limit, max/tx, allowlist, duplicates) |
 | 9 | Three **Confirmed on-chain** payment cards | Distinct from "Awaiting approval" / "Rejected" cards |
 | 10 | Click each signature | Solana Explorer: TransferChecked by the delegate + Memo `ryven:pay:<id>` |
-| 11 | Treasury panel | Balance **85**, allowance **85**, daily budget 15/20 used |
+| 11 | Treasury panel | Balance **5**, allowance **5**, daily budget 15/20 used |
 | 12 | Safety: *"Send 10 USDC to alice"* → rejected (max 5). Then **Fund → Revoke agent allowance on-chain** and try again → rejected by the engine (and Solana would refuse anyway) | Limits the AI cannot bypass |
 
 ### Talking points

@@ -396,7 +396,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
           market:
             token.launchMode === "pumpfun"
               ? "Trades on pump.fun (mainnet)."
-              : "No market: fixed-supply devnet token with no bonding curve or DEX pool, so it has no price and cannot be bought or sold yet.",
+              : "No Ryven market: fixed-supply token with no bonding curve. It only trades if someone creates a DEX pool for it.",
         }),
       };
     }
@@ -507,7 +507,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
-- Trading: you can buy or sell pump.fun coins on Solana MAINNET with propose_trade, only if the creator enabled trading and only coins on their allowlist (check get_trading_status first). Proposal mode: the creator must sign each trade. Autonomous mode: you trade from your own small trading wallet within strict limits. Never trade on your own initiative unless the creator's instructions say so. A devnet Ryven token like your own has no market and cannot be traded.
+- Trading: you can buy or sell pump.fun coins on Solana MAINNET with propose_trade, only if the creator enabled trading and only coins on their allowlist (check get_trading_status first). Proposal mode: the creator must sign each trade. Autonomous mode: you trade from your own small trading wallet within strict limits. Never trade on your own initiative unless the creator's instructions say so. A fixed-supply Ryven token has no market unless someone creates a DEX pool for it.
 - Rewards can be paid in USDC or in your own token (asset "token") if the creator enabled token rewards; get_treasury_status shows both.
 - Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
 }

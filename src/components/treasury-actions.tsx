@@ -14,7 +14,7 @@ import {
   buildWithdrawInstructions,
 } from "@/lib/solana/treasury";
 import { toBaseUnits } from "@/lib/shared/amounts";
-import { USDC_DECIMALS, publicConfig, usdcLabel, usdcLabelFor } from "@/lib/shared/config";
+import { APP_NETWORK, CIRCLE_DEVNET_USDC, USDC_DECIMALS, publicConfig, usdcLabelFor } from "@/lib/shared/config";
 import { Alert, Button, Field, Input, TxLink } from "./ui";
 
 type AgentRef = {
@@ -31,10 +31,10 @@ export type TreasurySpec = { asset: "usdc" | "token"; address: string; mint: str
 function resolveSpec(agent: AgentRef, spec?: TreasurySpec): TreasurySpec | null {
   if (spec) return spec;
   if (!agent.treasury) return null;
-  return { asset: "usdc", address: agent.treasury.address, mint: agent.treasury.mint, tokenProgram: TOKEN_PROGRAM_ID.toBase58(), decimals: USDC_DECIMALS, unit: usdcLabelFor(agent.network ?? "devnet") };
+  return { asset: "usdc", address: agent.treasury.address, mint: agent.treasury.mint, tokenProgram: TOKEN_PROGRAM_ID.toBase58(), decimals: USDC_DECIMALS, unit: usdcLabelFor(agent.network ?? APP_NETWORK) };
 }
 
-function useTx(network: "devnet" | "mainnet" = "devnet") {
+function useTx(network: "devnet" | "mainnet" = APP_NETWORK) {
   const wallet = useWallet();
   const connection = useNetworkConnection(network);
   const [busy, setBusy] = useState(false);
@@ -136,20 +136,22 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
         </Field>
       </div>
       {usdcBal === "0" && isToken && <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>Connect the wallet that holds the token supply.</Alert>}
-      {agent.network === "mainnet" && (
+      {(agent.network ?? APP_NETWORK) === "mainnet" && !compact && (
         <Alert tone="warn" title="Mainnet: real money">
           This treasury holds real {t.unit}. Your wallet must be on Solana Mainnet, and only delegate what you&apos;re comfortable letting the agent spend.
         </Alert>
       )}
-      {usdcBal === "0" && !isToken && agent.network !== "mainnet" && (
-        <Alert tone="warn" title={`You have no ${usdcLabel}`}>
-          {publicConfig.usdcMint === "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" ? (
+      {usdcBal === "0" && !isToken && (
+        <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>
+          {(agent.network ?? APP_NETWORK) === "mainnet" ? (
+            <>Buy or swap for USDC (e.g. in Phantom&apos;s swap or on jup.ag) and send it to this wallet on Solana mainnet.</>
+          ) : publicConfig.usdcMint === CIRCLE_DEVNET_USDC ? (
             <>
-              Get devnet USDC from{" "}
+              Get test USDC from{" "}
               <a className="underline" href="https://faucet.circle.com" target="_blank" rel="noreferrer">
                 faucet.circle.com
-              </a>{" "}
-              (choose Solana Devnet).
+              </a>
+              .
             </>
           ) : (
             <>Use the Test USDC faucet on your dashboard.</>

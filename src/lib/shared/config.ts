@@ -6,29 +6,41 @@ export const CIRCLE_DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 /** Circle's official USDC on Solana mainnet. */
 export const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
+export type Network = "devnet" | "mainnet";
+
+/**
+ * Ryven runs on Solana MAINNET (real SOL, real USDC). Setting
+ * NEXT_PUBLIC_SOLANA_CLUSTER=devnet switches to a free test network; that mode exists only
+ * for automated tests (scripts/e2e-devnet.ts).
+ */
+const cluster = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER === "devnet" ? "devnet" : "mainnet-beta") as "devnet" | "mainnet-beta";
+export const APP_NETWORK: Network = cluster === "devnet" ? "devnet" : "mainnet";
+const MAINNET_RPC = process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
+
 export const publicConfig = {
-  cluster: (process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet") as "devnet" | "mainnet-beta" | "testnet",
-  rpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
-  usdcMint: process.env.NEXT_PUBLIC_USDC_MINT ?? CIRCLE_DEVNET_USDC,
+  cluster,
+  rpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || (APP_NETWORK === "mainnet" ? MAINNET_RPC : "https://api.devnet.solana.com"),
+  usdcMint: APP_NETWORK === "mainnet" ? MAINNET_USDC : process.env.NEXT_PUBLIC_USDC_MINT || CIRCLE_DEVNET_USDC,
   curveProgramId: process.env.NEXT_PUBLIC_CURVE_PROGRAM_ID || null,
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  /** Browser RPC for mainnet (pump.fun coins and their agents). */
-  mainnetRpcUrl: process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com",
+  /** Browser RPC for mainnet (pump.fun coins, trading, agents). */
+  mainnetRpcUrl: APP_NETWORK === "mainnet" ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL || MAINNET_RPC : MAINNET_RPC,
 };
 
+export const networkLabel = APP_NETWORK === "mainnet" ? "Mainnet" : "Devnet (test mode)";
+
 /** USDC mint used by agent treasuries on each network. */
-export const usdcMintFor = (network: "devnet" | "mainnet") => (network === "mainnet" ? MAINNET_USDC : publicConfig.usdcMint);
-/** Display name for an agent's USDC: real on mainnet, possibly "Test USDC" on devnet. */
-export const usdcLabelFor = (network: "devnet" | "mainnet") => (network === "mainnet" ? "USDC" : usdcLabel);
+export const usdcMintFor = (network: Network) =>
+  network === "mainnet" ? MAINNET_USDC : process.env.NEXT_PUBLIC_DEVNET_USDC_MINT || (APP_NETWORK === "devnet" ? publicConfig.usdcMint : CIRCLE_DEVNET_USDC);
+/** Display name for an agent's USDC. */
+export const usdcLabelFor = (network: Network) => (network === "mainnet" ? "USDC" : usdcLabel);
 
 export const USDC_DECIMALS = 6;
 export const LAUNCH_TOKEN_DECIMALS = 6;
 
-/** True when the configured payment mint is Circle's official devnet USDC. */
-export const isCircleUsdc = publicConfig.usdcMint === CIRCLE_DEVNET_USDC;
+/** True when the payment mint is Circle's official USDC (mainnet or devnet). */
+export const isCircleUsdc = publicConfig.usdcMint === MAINNET_USDC || publicConfig.usdcMint === CIRCLE_DEVNET_USDC;
 export const usdcLabel = isCircleUsdc ? "USDC" : "Test USDC";
-
-export type Network = "devnet" | "mainnet";
 const clusterQuery = (network?: Network) =>
   network === "mainnet" || (!network && publicConfig.cluster === "mainnet-beta") ? "" : `?cluster=${network ?? publicConfig.cluster}`;
 export function explorerTx(signature: string, network?: Network) {
