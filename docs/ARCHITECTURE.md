@@ -274,6 +274,25 @@ Scheduling: an in-process timer (every 10 min, `instrumentation-node.ts`) or
 agent is claimed atomically (`brief_last_at` updated before generating), so overlapping runs
 or several instances never produce duplicates.
 
+### Live terminal, charts and user trading
+
+`src/lib/server/live-market.ts` serves the Live columns (Jupiter's pump.fun pools feed, with
+Jupiter's public recent-tokens API as fallback), OHLCV candles (1s-1d, price or market cap),
+the latest trades and per-token activity (buys/sells/volume/traders over 5m, 1h, 6h, 24h).
+Responses are cached for 1.5-4 s per server instance and shared by all viewers, so upstream
+traffic doesn't scale with visitors; routes are rate-limited per IP. The browser polls
+(`/api/live/*`) and renders charts with lightweight-charts.
+
+Buy/sell for visitors (`/api/swap/quote`, `/api/swap/build`, `user-swap.ts`) reuses the
+agent swap safety: fresh Jupiter quote → transaction built for the user's wallet (priority
+fee capped at 0.001 SOL) → validation (one signer = the user, known programs, no top-level
+transfers to anyone else) → mainnet simulation (no more than the input + fees may leave the
+wallet). Ryven never signs; the wallet does. Confirmation is by HTTP polling through the RPC
+relay.
+
+The agent's `get_trading_activity` tool reads the same activity windows, so it can answer
+"how many buys and sells…" without guessing.
+
 ### Price alerts
 
 `set_price_alert` / `list_price_alerts` / `cancel_price_alert` (`src/lib/server/alerts.ts`,

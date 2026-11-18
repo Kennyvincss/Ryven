@@ -7,7 +7,8 @@ import "server-only";
 let dispatcher: import("undici").Dispatcher | null = null;
 
 export async function outboundFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  if (!process.env.HTTPS_PROXY) return fetch(input, init);
+  // No proxy, or Node itself routes fetch through it (NODE_USE_ENV_PROXY=1): platform fetch.
+  if (!process.env.HTTPS_PROXY || process.env.NODE_USE_ENV_PROXY === "1") return fetch(input, init);
   const undici = await import("undici");
   dispatcher ??= new undici.EnvHttpProxyAgent();
   let { body, headers } = init;

@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Bot, ExternalLink, Globe, LineChart, MessageCircle, Send } from "lucide-react";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
+import { TradeView } from "@/components/live/trade-view";
 import { explorerAddress, explorerTx, pumpFunCoinUrl, usdcLabel } from "@/lib/shared/config";
 import { formatCompact } from "@/lib/shared/amounts";
 import { PaymentStatus } from "@/components/cards";
@@ -95,6 +96,11 @@ export default function TokenPage() {
             <a href={explorerTx(t.launchSignature, t.network)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-info hover:underline">
               launch tx <ExternalLink className="size-3" />
             </a>
+            {t.launchMode === "pumpfun" && (
+              <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-info hover:underline">
+                pump.fun <ExternalLink className="size-3" />
+              </a>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -140,21 +146,19 @@ export default function TokenPage() {
         </Card>
       )}
 
+      {t.launchMode === "pumpfun" && t.network === "mainnet" && (
+        <div className="mt-5">
+          <TradeView mint={t.mint} symbol={t.symbol} decimals={6} />
+        </div>
+      )}
+
       <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="space-y-5">
+          {t.launchMode !== "pumpfun" && (
           <Card>
             <CardHeader title="Trading" subtitle="Bonding-curve market" icon={<LineChart className="size-4" />} />
             <div className="p-5">
-              {t.launchMode === "pumpfun" ? (
-                <div className="space-y-3">
-                  <Alert tone="accent" title="Trades on pump.fun">
-                    This coin was created on pump.fun (Solana mainnet). Its bonding curve, price and trading live on pump.fun.
-                  </Alert>
-                  <Button href={pumpFunCoinUrl(t.mint)}>
-                    Trade on pump.fun <ExternalLink className="size-3.5" />
-                  </Button>
-                </div>
-              ) : t.launchMode === "fixed_supply" ? (
+              {t.launchMode === "fixed_supply" ? (
                 <Alert tone="info" title="No bonding curve for this token">
                   This token was launched with a fixed supply minted to its creator, so it has no on-chain curve market on Ryven. Bonding-curve launches
                   require the <code className="font-mono">ryven_curve</code> program{config?.curveProgramId ? "" : ", which isn't live yet"}.
@@ -180,6 +184,7 @@ export default function TokenPage() {
               </div>
             </div>
           </Card>
+          )}
 
           <Card>
             <CardHeader title="Community rewards" subtitle="Confirmed agent payments, each one a Solana transaction" />

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Bot, CheckCircle2, CircleAlert, Clock, Cog, ExternalLink, Loader2, ShieldCheck, Sparkles, User, Wrench, XCircle } from "lucide-react";
+import { ArrowUp, Bot, CheckCircle2, CircleAlert, Clock, ExternalLink, Loader2, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { explorerTx, usdcLabel } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
@@ -30,8 +30,6 @@ type Event =
 type Entry =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
-  | { kind: "status"; status: string; message: string }
-  | { kind: "tool"; name: string }
   | { kind: "payment"; payment: PaymentView }
   | { kind: "error"; text: string };
 
@@ -42,26 +40,6 @@ const SUGGESTIONS = [
   "Prepare a reward campaign for our community.",
   "Stop all scheduled payments.",
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  thinking: "Thinking",
-  analysing: "Analysing",
-  checking_permissions: "Checking permissions",
-  preparing_payment: "Preparing payment",
-  awaiting_approval: "Awaiting approval",
-  executing: "Executing",
-  completed: "Completed",
-  failed: "Failed",
-};
-
-function StatusIcon({ s, live }: { s: string; live?: boolean }) {
-  if (live && !["completed", "failed"].includes(s)) return <Loader2 className="size-3.5 animate-spin text-agent" />;
-  if (s === "completed") return <CheckCircle2 className="size-3.5 text-accent" />;
-  if (s === "failed") return <XCircle className="size-3.5 text-danger" />;
-  if (s === "checking_permissions") return <ShieldCheck className="size-3.5 text-info" />;
-  if (s === "awaiting_approval") return <Clock className="size-3.5 text-warn" />;
-  return <Cog className="size-3.5 text-muted" />;
-}
 
 export function PaymentChip({ p }: { p: PaymentView }) {
   const conf: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
@@ -119,7 +97,6 @@ export function AgentTerminal({
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
-  const [liveStatus, setLiveStatus] = useState<{ status: string; message: string } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -130,7 +107,7 @@ export function AgentTerminal({
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [entries, liveStatus]);
+  }, [entries, running]);
 
   async function send(text: string) {
     if (!text.trim() || running) return;
@@ -167,19 +144,16 @@ export function AgentTerminal({
       setEntries((x) => [...x, { kind: "error", text: (e as Error).message }]);
     } finally {
       setRunning(false);
-      setLiveStatus(null);
       onActivity?.();
     }
   }
 
   function handle(ev: Event) {
     switch (ev.type) {
+      // Internal steps (tool calls, checks) aren't shown: the terminal just says "Thinking…"
+      // until the agent answers. Payments still appear as cards.
       case "status":
-        setLiveStatus({ status: ev.status, message: ev.message });
-        if (ev.status !== "thinking") setEntries((x) => [...x, { kind: "status", status: ev.status, message: ev.message }]);
-        break;
       case "tool_call":
-        setEntries((x) => [...x, { kind: "tool", name: ev.name }]);
         break;
       case "payment":
         setEntries((x) => {
@@ -247,19 +221,6 @@ export function AgentTerminal({
                 <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-text">{e.text}</div>
               </div>
             );
-          if (e.kind === "status")
-            return (
-              <div key={i} className="flex items-center gap-2 pl-6 text-[12px] text-muted">
-                <StatusIcon s={e.status} />
-                <span className="text-faint">[{STATUS_LABEL[e.status] ?? e.status}]</span> {e.message}
-              </div>
-            );
-          if (e.kind === "tool")
-            return (
-              <div key={i} className="flex items-center gap-2 pl-6 text-[12px] text-faint">
-                <Wrench className="size-3.5" /> tool · {e.name}
-              </div>
-            );
           if (e.kind === "payment")
             return (
               <div key={i} className="pl-6 font-sans">
@@ -274,9 +235,9 @@ export function AgentTerminal({
           );
         })}
         {running && (
-          <div className="flex items-center gap-2 pl-6 text-[12px] text-agent">
-            <Loader2 className="size-3.5 animate-spin" />
-            {liveStatus ? `${STATUS_LABEL[liveStatus.status] ?? liveStatus.status}: ${liveStatus.message}` : "Thinking…"}
+          <div className="flex items-center gap-2.5 font-sans text-[13.5px] text-agent">
+            <Bot className="size-4 shrink-0" />
+            <ThinkingDots />
           </div>
         )}
       </div>
@@ -321,5 +282,19 @@ export function AgentTerminal({
         </form>
       </div>
     </div>
+  );
+}
+
+/** "Thinking", "Thinking.", "Thinking..", "Thinking..." */
+function ThinkingDots() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setN((x) => (x + 1) % 4), 400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span aria-live="polite">
+      Thinking<span className="inline-block w-5 text-left">{".".repeat(n)}</span>
+    </span>
   );
 }

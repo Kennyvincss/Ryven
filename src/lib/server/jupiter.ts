@@ -68,6 +68,7 @@ export async function getQuote(inputMint: string, outputMint: string, amountRaw:
   const url = `${JUP}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountRaw}&slippageBps=${slippageBps}`;
   const res = await outboundFetch(url, { headers: { accept: "application/json" } });
   const j = (await res.json().catch(() => null)) as (Quote & { error?: string }) | null;
+  if (res.status === 429) throw new SwapError("Swap routing is busy right now. Try again in a few seconds.");
   if (!res.ok || !j || !j.outAmount) throw new SwapError(`No swap route found${j?.error ? `: ${j.error}` : ""}`);
   return j;
 }
@@ -103,17 +104,35 @@ export function validateSwapTransaction(tx: VersionedTransaction, wallet: string
   }
 }
 
-export async function buildSwapTransaction(quote: Quote, wallet: string): Promise<VersionedTransaction> {
+/** Upper bound on the priority fee a swap may pay (0.001 SOL), so it lands quickly in busy markets. */
+export const MAX_PRIORITY_FEE_LAMPORTS = 1_000_000;
+
+export async function buildSwapTransaction(quote: Quote, wallet: string, opts: { priority?: boolean } = {}): Promise<VersionedTransaction> {
+  return (await buildSwapTransactionWithMeta(quote, wallet, opts)).tx;
+}
+
+/** Same, plus the blockhash expiry height (for confirming by polling). */
+export async function buildSwapTransactionWithMeta(quote: Quote, wallet: string, opts: { priority?: boolean } = {}): Promise<{ tx: VersionedTransaction; lastValidBlockHeight: number | null }> {
   const res = await outboundFetch(`${JUP}/swap`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ quoteResponse: quote, userPublicKey: wallet, wrapAndUnwrapSol: true, dynamicComputeUnitLimit: true }),
+    body: JSON.stringify({
+      quoteResponse: quote,
+      userPublicKey: wallet,
+      wrapAndUnwrapSol: true,
+      dynamicComputeUnitLimit: true,
+      ...(opts.priority ? { prioritizationFeeLamports: { priorityLevelWithMaxLamports: { maxLamports: MAX_PRIORITY_FEE_LAMPORTS, priorityLevel: "veryHigh" } } } : {}),
+    }),
   });
-  const j = (await res.json().catch(() => null)) as { swapTransaction?: string; error?: string } | null;
-  if (!res.ok || !j?.swapTransaction) throw new SwapError(`Jupiter could not build the swap${j?.error ? `: ${j.error}` : ""}`);
+  const j = (await res.json().catch(() => null)) as { swapTransaction?: string; lastValidBlockHeight?: number; error?: string } | null;
+  if (res.status === 429) throw new SwapError("Swap routing is busy right now. Try again in a few seconds.");
+  if (!res.ok || !j?.swapTransaction) {
+    console.error(`Jupiter /swap answered ${res.status}`, j?.error ?? "");
+    throw new SwapError(`Jupiter could not build the swap${j?.error ? `: ${j.error}` : ""}`);
+  }
   const tx = VersionedTransaction.deserialize(Buffer.from(j.swapTransaction, "base64"));
   validateSwapTransaction(tx, wallet);
-  return tx;
+  return { tx, lastValidBlockHeight: typeof j.lastValidBlockHeight === "number" ? j.lastValidBlockHeight : null };
 }
 
 /** Fees + rent for new token accounts (0.01 SOL). */

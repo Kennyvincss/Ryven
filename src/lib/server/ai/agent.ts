@@ -23,6 +23,7 @@ import {
 import { connectionFor, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
 import { getMarketData } from "../market";
+import { getTradingActivity } from "../live-market";
 import { analyzePortfolio, portfolioForModel } from "../portfolio";
 import { listBriefs } from "./brief";
 import { alertView, cancelAlert, createAlert, listAlerts } from "../alerts";
@@ -246,6 +247,18 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     name: "get_market_data",
     description:
       "Live market data for a token on Solana mainnet: price (SOL and USD), market cap, pump.fun bonding-curve progress / graduation, liquidity, 24h volume and 24h price change. For coins still on pump.fun the price is computed from the on-chain bonding curve and SOL/USD from Pyth's on-chain feed; traded coins use DexScreener. Use mint \"own\" for this agent's own token, or any token mint address.",
+    input_schema: {
+      type: "object",
+      properties: { mint: { type: "string", description: "\"own\" or a token mint address" } },
+      required: ["mint"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    name: "get_trading_activity",
+    description:
+      "Trading activity of a token on Solana mainnet: number of buys and sells, buy/sell volume in USD, unique traders, net buyers and price change over the last 5 minutes, 1 hour, 6 hours and 24 hours, plus the latest ~30 individual trades (time, buy/sell, USD, SOL, wallet). Use mint \"own\" for this agent's coin. Only these windows exist: for another window (e.g. 2 hours) report the nearest windows and say so, never estimate a number for it.",
     input_schema: {
       type: "object",
       properties: { mint: { type: "string", description: "\"own\" or a token mint address" } },
@@ -679,6 +692,27 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         throw e;
       }
     }
+    case "get_trading_activity": {
+      const { mint: requested } = MarketInput.parse(input);
+      const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      const mint = requested.trim().toLowerCase() === "own" ? own?.mint : requested.trim();
+      if (!mint) return { content: "Token not found", isError: true };
+      try {
+        new PublicKey(mint);
+      } catch {
+        return { content: `"${requested}" is not a valid token mint address`, isError: true };
+      }
+      const act = await getTradingActivity(mint).catch(() => null);
+      if (!act) return { content: "No trading data for this token (it may have no market yet, or the data source is unavailable).", isError: true };
+      return {
+        content: JSON.stringify({
+          ...act,
+          recentTrades: act.recentTrades.map((t) => ({ time: t.time, side: t.side, usd: t.usd !== null ? Math.round(t.usd * 100) / 100 : null, sol: t.sol, wallet: t.trader })),
+          recent_trades_cover_since: act.recentTrades.at(-1)?.time ?? null,
+          source: "Jupiter market data",
+        }),
+      };
+    }
     case "get_market_data": {
       const { mint: requested } = MarketInput.parse(input);
       const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
@@ -731,6 +765,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - You cannot change your own limits, approve payments, or resume after a pause. If asked, explain that only the creator can do that from the Ryven console.
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
+- For buys, sells, traders or recent trades use get_trading_activity (windows: 5m, 1h, 6h, 24h; for other windows give the nearest ones and say so).
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.

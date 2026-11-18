@@ -59,6 +59,9 @@ body {
 .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 @keyframes caret { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
 .caret { animation: caret 1s step-end infinite; }
+/* Live terminal: new rows / cards briefly highlight. */
+@keyframes flash { 0% { background-color: rgba(166, 244, 106, 0.14) } 100% { background-color: transparent } }
+.animate-flash { animation: flash 1.2s ease-out; }
 
 /* Wallet adapter theming */
 .wallet-adapter-modal-wrapper { background: var(--color-panel) !important; border: 1px solid var(--color-line); border-radius: 20px !important; }

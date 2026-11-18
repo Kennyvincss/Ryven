@@ -167,6 +167,18 @@ For a **daily brief**: Console → **Wallet brief** → Daily brief **On** → p
 running (`npm run dev` or `npm start`). On Vercel, set `CRON_SECRET` and add a cron job that
 calls `/api/cron/briefs` hourly (see `.env.example`).
 
+### Live terminal and trading
+
+**Live** (top menu) shows pump.fun coins in three columns that update every few seconds:
+**New pairs**, **About to graduate** and **Graduated**. Hovering a column pauses it. Click a
+coin for its page: live chart (1s to 1d, market cap or price), live trades, safety info and
+a **Buy / Sell** panel. The ⚡ button on each card buys instantly with your **Quick buy**
+amount. pump.fun coins you launch on Ryven get the same chart and Buy/Sell on their token page.
+
+Trades use your own wallet and real SOL: Ryven gets the best route from Jupiter, checks the
+transaction (it can only swap your own funds) and simulates it before your wallet asks you
+to approve. Nothing to configure: no new environment variables.
+
 ### Price alerts
 
 Ask the agent, e.g. *"Alert me if SOL drops below $150"*, *"Tell me when our market cap hits

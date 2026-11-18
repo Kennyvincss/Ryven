@@ -8,6 +8,7 @@ import { cn } from "./ui";
 import { APP_NETWORK, networkLabel } from "@/lib/shared/config";
 
 const NAV = [
+  { href: "/live", label: "Live" },
   { href: "/tokens", label: "Tokens" },
   { href: "/agents", label: "Agents" },
   { href: "/launch", label: "Launch" },
