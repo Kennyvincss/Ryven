@@ -17,7 +17,7 @@ if (enabled && process.env.DATABASE_URL) {
 // `npm run dev` / `npm start`). Hosted setups can call /api/cron/briefs instead (CRON_SECRET).
 // BRIEF_SCHEDULER=false turns it off.
 const g = globalThis as { __ryvenBriefTimer?: ReturnType<typeof setInterval> };
-if (process.env.DATABASE_URL && process.env.BRIEF_SCHEDULER !== "false" && !g.__ryvenBriefTimer) {
+if (process.env.DATABASE_URL && !process.env.VERCEL && process.env.BRIEF_SCHEDULER !== "false" && !g.__ryvenBriefTimer) {
   const tick = async () => {
     try {
       const { runDueBriefs } = await import("./lib/server/ai/brief");
@@ -35,7 +35,7 @@ if (process.env.DATABASE_URL && process.env.BRIEF_SCHEDULER !== "false" && !g.__
 // Price alerts: checked every minute (in-process). Hosted setups can call /api/cron/alerts.
 // ALERT_SCHEDULER=false turns it off.
 const ga = globalThis as { __ryvenAlertTimer?: ReturnType<typeof setInterval> };
-if (process.env.DATABASE_URL && process.env.ALERT_SCHEDULER !== "false" && !ga.__ryvenAlertTimer) {
+if (process.env.DATABASE_URL && !process.env.VERCEL && process.env.ALERT_SCHEDULER !== "false" && !ga.__ryvenAlertTimer) {
   let running = false;
   const tick = async () => {
     if (running) return; // never overlap

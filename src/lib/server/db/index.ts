@@ -12,7 +12,10 @@ function makePool() {
   const url = serverEnv.databaseUrl;
   return new Pool({
     connectionString: url,
-    max: 10,
+    // Serverless (Vercel): every function instance has its own pool, so keep it small and let
+    // idle connections go quickly. Use Supabase's pooler connection string there.
+    max: process.env.VERCEL ? 3 : 10,
+    idleTimeoutMillis: process.env.VERCEL ? 5_000 : 10_000,
     // Supabase / hosted Postgres require TLS; local Postgres usually does not.
     ssl: /sslmode=require|supabase\.co|neon\.tech/.test(url) ? { rejectUnauthorized: false } : undefined,
   });

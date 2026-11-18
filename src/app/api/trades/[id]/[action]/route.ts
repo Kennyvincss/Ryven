@@ -19,3 +19,6 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
   if (action === "cancel") return json({ trade: tradeView(await cancelTrade(id, wallet)) });
   throw new EngineError("Unknown action", 404);
 });
+
+/** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */
+export const maxDuration = 300;

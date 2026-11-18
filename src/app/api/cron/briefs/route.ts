@@ -11,3 +11,6 @@ export const GET = handler(async (req: Request) => {
   const results = await runDueBriefs(new Date(), 20);
   return json({ ok: true, generated: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length });
 });
+
+/** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */
+export const maxDuration = 300;

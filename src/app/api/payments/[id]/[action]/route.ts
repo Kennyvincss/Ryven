@@ -20,3 +20,6 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
   } else throw new EngineError("Unknown action", 404);
   return json({ payment: paymentPublicView(p) });
 });
+
+/** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */
+export const maxDuration = 300;

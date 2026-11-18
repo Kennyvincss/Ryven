@@ -22,3 +22,6 @@ export const POST = handler(async (req: Request, { params }: P) => {
   enforceRateLimit(req, "brief", 3, 10 * 60_000, session.wallet);
   return json({ brief: briefView(await generateBrief(id, "manual")) });
 });
+
+/** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */
+export const maxDuration = 300;

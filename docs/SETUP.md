@@ -178,11 +178,61 @@ call `/api/cron/alerts` from a cron job with `CRON_SECRET` (see `.env.example`).
 
 ## 5. Deploying publicly (Vercel + Supabase)
 
-1. Import the GitHub repo at https://vercel.com/new.
-2. Add every variable from your `.env` under *Settings → Environment Variables*. Set
-   `NEXT_PUBLIC_APP_URL` to your Vercel URL.
-3. Run `npm run db:migrate` once from your computer against the Supabase database.
-4. The built-in rate limiter is in-memory; for multiple server instances, back it with Redis.
+Once connected, Vercel redeploys automatically every time `main` changes.
+
+**Before you start:** your app must already work locally against Supabase, and
+`npm run db:migrate` must have succeeded (Vercel does not migrate the database for you).
+Run `npm run db:migrate` again from your computer after every `git pull` that adds a migration.
+
+1. **Import the project.** Go to https://vercel.com/new → sign in with GitHub → find
+   **Ryven** → **Import**. Leave the framework (Next.js) and build settings as they are.
+   Don't click Deploy yet.
+2. **Add the environment variables.** In the import screen open **Environment Variables**
+   and add each line below. Copy the values from your local `.env` (open it in VS Code), except
+   where noted. Tip: you can paste your whole `.env` into the first box and Vercel splits it.
+
+   | Name | Value |
+   |---|---|
+   | `DATABASE_URL` | your Supabase string, but use the **Transaction pooler** (Supabase → Connect → Transaction pooler, port **6543**) |
+   | `SESSION_SECRET` | from `.env` |
+   | `AGENT_KEY_ENCRYPTION_KEY` | from `.env` (must be the same, or existing agents can't sign) |
+   | `FEE_PAYER_SECRET_KEY` | from `.env` |
+   | `ANTHROPIC_API_KEY` | from `.env` |
+   | `NEXT_PUBLIC_SOLANA_RPC_URL` | your Helius mainnet URL (required: the public RPC blocks most cloud servers) |
+   | `PINATA_JWT` | from `.env` (optional on Vercel, recommended) |
+   | `PUMPFUN_ENABLED` | `true` if you use pump.fun launches |
+   | `ADMIN_WALLETS` | your wallet address (optional) |
+   | `CRON_SECRET` | a new random password: run `npm run keys` and copy the `SESSION_SECRET` value it prints (don't reuse your real one) |
+   | `NEXT_PUBLIC_APP_URL` | leave for now (step 4) |
+
+   Never add the test-mode variables (`NEXT_PUBLIC_SOLANA_CLUSTER`, `TEST_USDC_*`).
+3. **Deploy.** Click **Deploy** and wait for "Congratulations". Your URL looks like
+   `https://ryven-xxxx.vercel.app`.
+4. **Set the app URL.** Vercel → your project → **Settings → Environment Variables** → add
+   `NEXT_PUBLIC_APP_URL` = your Vercel URL (no trailing slash) → **Deployments** → ⋯ on the
+   latest → **Redeploy**. (Any change to a `NEXT_PUBLIC_…` variable needs a redeploy.)
+5. **Check it.** Open `https://<your-url>/api/config`: it should show `"network":"mainnet"`
+   and `"aiEnabled":true`. Then sign in with your wallet.
+6. **Turn on price alerts and daily briefs.** On Vercel nothing runs between visits, so use a
+   free cron service. At https://cron-job.org create an account and add two jobs:
+
+   | Job | URL | Schedule |
+   |---|---|---|
+   | Price alerts | `https://<your-url>/api/cron/alerts` | every 1 minute |
+   | Daily briefs | `https://<your-url>/api/cron/briefs` | every hour |
+
+   For each job: **Advanced → Headers → Add**: key `Authorization`, value `Bearer ` followed
+   by your `CRON_SECRET` (e.g. `Bearer abc123…`). Save, then **Test run**: it should answer
+   `{"ok":true,…}`. A `401` means the header doesn't match `CRON_SECRET`.
+
+**Notes**
+- Vercel's free plan can only run its own cron jobs once a day, which is why step 6 uses
+  cron-job.org.
+- Agent replies, payments and trades can take a while (Claude + Solana confirmation); those
+  routes are allowed up to 5 minutes.
+- The built-in rate limiter is in memory, per server instance. That's fine to start; for
+  heavy traffic, back it with Redis.
+- Problems? Vercel → your project → **Logs** shows server errors.
 
 ---
 

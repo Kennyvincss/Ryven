@@ -37,3 +37,6 @@ export const POST = handler(async (req: Request, { params }: P) => {
   });
   return new Response(stream, { headers: { "content-type": "application/x-ndjson", "cache-control": "no-store" } });
 });
+
+/** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */
+export const maxDuration = 300;
