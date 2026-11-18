@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireCreator } from "@/lib/server/agents";
 import { executePayment, proposePayments } from "@/lib/server/engine/payments";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
-import { paymentPublicView } from "@/lib/server/queries";
+import { paymentCreatorView } from "@/lib/server/queries";
 import { toBaseUnits } from "@/lib/shared/amounts";
 import { LAUNCH_TOKEN_DECIMALS, PAYMENT_CATEGORY_IDS, USDC_DECIMALS } from "@/lib/shared/config";
 
@@ -30,7 +30,7 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
     items: [{ recipient: b.recipient.trim(), amount: toBaseUnits(b.amount, b.asset === "usdc" ? USDC_DECIMALS : b.asset === "sol" ? 9 : LAUNCH_TOKEN_DECIMALS), category: b.category, reason: b.reason, campaign: "Manual payment" }],
   });
   const p = r.payment.status === "approved" ? await executePayment(r.payment.id) : r.payment;
-  return json({ payment: paymentPublicView(p), duplicate: r.duplicate });
+  return json({ payment: paymentCreatorView(p), duplicate: r.duplicate });
 });
 
 /** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */

@@ -89,9 +89,7 @@ export function useWalletBalances(owner: PublicKey | null) {
 
 export type PublicAppConfig = {
   aiEnabled: boolean;
-  aiModel: string | null;
   ipfsEnabled: boolean;
-  feePayer: string | null;
   testUsdcFaucet: boolean;
   curveProgramId: string | null;
   pumpfunEnabled: boolean;

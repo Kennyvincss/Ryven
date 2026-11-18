@@ -324,7 +324,7 @@ export const agentActivities = pgTable(
     status: text("status").notNull(),
     message: text("message").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>(),
-    isPublic: boolean("is_public").notNull().default(true),
+    isPublic: boolean("is_public").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [index("activities_agent_created_idx").on(t.agentId, t.createdAt)],

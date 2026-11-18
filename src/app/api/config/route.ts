@@ -1,22 +1,16 @@
-import { getFeePayer, getTestUsdcAuthority, serverEnv } from "@/lib/server/env";
+import { getTestUsdcAuthority, serverEnv } from "@/lib/server/env";
 import { handler, json } from "@/lib/server/http";
 import { APP_NETWORK, publicConfig } from "@/lib/shared/config";
 
-/** Tells the UI which optional integrations are configured (no secrets). */
+/** Which features are available, for the UI. Public: no secrets, keys, addresses or internals. */
 export const GET = handler(async () => {
-  let feePayer: string | null = null;
-  try {
-    feePayer = getFeePayer().publicKey.toBase58();
-  } catch {}
   let faucet = false;
   try {
     faucet = APP_NETWORK === "devnet" && serverEnv.testUsdcFaucetEnabled && !!getTestUsdcAuthority();
   } catch {}
   return json({
     aiEnabled: !!serverEnv.anthropicApiKey,
-    aiModel: serverEnv.anthropicApiKey ? serverEnv.anthropicModel : null,
     ipfsEnabled: !!serverEnv.pinataJwt,
-    feePayer,
     testUsdcFaucet: faucet,
     curveProgramId: publicConfig.curveProgramId,
     pumpfunEnabled: process.env.PUMPFUN_ENABLED === "true",

@@ -1,7 +1,7 @@
 import "server-only";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
-import { APP_NETWORK, publicConfig } from "../shared/config";
+import { APP_NETWORK } from "../shared/config";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -16,7 +16,9 @@ export const serverEnv = {
     return required("DATABASE_URL");
   },
   get rpcUrl() {
-    return process.env.SOLANA_RPC_URL || publicConfig.rpcUrl;
+    // NEXT_PUBLIC_SOLANA_RPC_URL is still accepted for older setups; it is only read here
+    // (server-only), never by browser code, so the key it contains stays private.
+    return process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || (APP_NETWORK === "mainnet" ? "https://api.mainnet-beta.solana.com" : "https://api.devnet.solana.com");
   },
   get sessionSecret() {
     const s = required("SESSION_SECRET");
@@ -48,7 +50,10 @@ export const serverEnv = {
     return process.env.PINATA_JWT || null;
   },
   get mainnetRpcUrl() {
-    return process.env.MAINNET_RPC_URL || (APP_NETWORK === "mainnet" ? process.env.SOLANA_RPC_URL || publicConfig.rpcUrl : "https://api.mainnet-beta.solana.com");
+    return (
+      process.env.MAINNET_RPC_URL ||
+      (APP_NETWORK === "mainnet" ? this.rpcUrl : process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com")
+    );
   },
   /** pump.fun launches need the feature flag AND Pinata (pump.fun no longer hosts metadata). */
   get pumpfunEnabled() {

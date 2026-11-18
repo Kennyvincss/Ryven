@@ -57,6 +57,13 @@
       "when": 1794983592906,
       "tag": "0007_price_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794986536928,
+      "tag": "0008_hide_private_activity",
+      "breakpoints": true
     }
   ]
 }

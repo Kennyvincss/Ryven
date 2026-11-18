@@ -28,7 +28,8 @@ export const POST = handler(async (req: Request, { params }: P) => {
       try {
         await runInstruction(id, text, emit);
       } catch (e) {
-        emit({ type: "error", message: (e as Error).message });
+        console.error("Terminal stream failed:", e);
+        emit({ type: "error", message: process.env.NODE_ENV !== "production" ? (e as Error).message : "Something went wrong. Please try again." });
         emit({ type: "done" });
       } finally {
         controller.close();

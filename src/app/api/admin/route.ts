@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/server/auth";
 import { db, schema } from "@/lib/server/db";
 import { isPlatformPaused } from "@/lib/server/engine/payments";
 import { handler, json } from "@/lib/server/http";
-import { listAgents, paymentPublicView, platformStats } from "@/lib/server/queries";
+import { listAgents, paymentCreatorView, platformStats } from "@/lib/server/queries";
 
 export const GET = handler(async () => {
   await requireAdmin();
@@ -14,7 +14,7 @@ export const GET = handler(async () => {
     listAgents({ sort: "recent", limit: 100 }),
     db.select().from(schema.payments).where(eq(schema.payments.status, "failed")).orderBy(desc(schema.payments.createdAt)).limit(25),
   ]);
-  return json({ stats, paymentsPaused: paused, agents, failedPayments: failed.map(paymentPublicView) });
+  return json({ stats, paymentsPaused: paused, agents, failedPayments: failed.map(paymentCreatorView) });
 });
 
 const Body = z.object({ paymentsPaused: z.boolean() });

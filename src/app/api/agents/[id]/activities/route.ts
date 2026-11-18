@@ -1,6 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/server/auth";
 import { db, schema } from "@/lib/server/db";
+import { PUBLIC_ACTIVITY_TYPES, activityPublicView } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
 import { handler, json } from "@/lib/server/http";
 
@@ -12,8 +13,12 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const rows = await db
     .select()
     .from(schema.agentActivities)
-    .where(isCreator ? eq(schema.agentActivities.agentId, id) : and(eq(schema.agentActivities.agentId, id), eq(schema.agentActivities.isPublic, true)))
+    .where(
+      isCreator
+        ? eq(schema.agentActivities.agentId, id)
+        : and(eq(schema.agentActivities.agentId, id), eq(schema.agentActivities.isPublic, true), inArray(schema.agentActivities.type, [...PUBLIC_ACTIVITY_TYPES])),
+    )
     .orderBy(desc(schema.agentActivities.createdAt))
     .limit(100);
-  return json({ activities: rows.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })) });
+  return json({ activities: isCreator ? rows.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })) : rows.map(activityPublicView) });
 });

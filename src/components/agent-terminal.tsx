@@ -227,7 +227,7 @@ export function AgentTerminal({
             <div className="mt-1 text-xs text-muted">It can only act within the spending permissions you configured.</div>
             {!aiEnabled && (
               <div className="mx-auto mt-4 max-w-sm rounded-xl border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-warn">
-                AI is not configured on this server (ANTHROPIC_API_KEY). Manual payments still work from the Payments tab.
+                The AI agent is temporarily unavailable. Manual payments still work from the Manual payment tab.
               </div>
             )}
           </div>

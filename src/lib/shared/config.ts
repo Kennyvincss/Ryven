@@ -15,16 +15,30 @@ export type Network = "devnet" | "mainnet";
  */
 const cluster = (process.env.NEXT_PUBLIC_SOLANA_CLUSTER === "devnet" ? "devnet" : "mainnet-beta") as "devnet" | "mainnet-beta";
 export const APP_NETWORK: Network = cluster === "devnet" ? "devnet" : "mainnet";
-const MAINNET_RPC = process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+/**
+ * Browsers never see the real RPC URL (a Helius URL contains its API key): they talk to
+ * Solana through Ryven's own /api/rpc relay, which holds the key server-side.
+ * Server code uses serverEnv.rpcUrl / serverEnv.mainnetRpcUrl instead.
+ */
+function relayUrl(network: Network) {
+  const origin = typeof window !== "undefined" ? window.location.origin : APP_URL;
+  return `${origin}/api/rpc?network=${network}`;
+}
 
 export const publicConfig = {
   cluster,
-  rpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || (APP_NETWORK === "mainnet" ? MAINNET_RPC : "https://api.devnet.solana.com"),
+  get rpcUrl() {
+    return relayUrl(APP_NETWORK);
+  },
   usdcMint: APP_NETWORK === "mainnet" ? MAINNET_USDC : process.env.NEXT_PUBLIC_USDC_MINT || CIRCLE_DEVNET_USDC,
   curveProgramId: process.env.NEXT_PUBLIC_CURVE_PROGRAM_ID || null,
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  /** Browser RPC for mainnet (pump.fun coins, trading, agents). */
-  mainnetRpcUrl: APP_NETWORK === "mainnet" ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL || MAINNET_RPC : MAINNET_RPC,
+  appUrl: APP_URL,
+  /** Browser RPC for mainnet (pump.fun coins, trading, agents), via the relay. */
+  get mainnetRpcUrl() {
+    return relayUrl("mainnet");
+  },
 };
 
 export const networkLabel = APP_NETWORK === "mainnet" ? "Mainnet" : "Devnet (test mode)";

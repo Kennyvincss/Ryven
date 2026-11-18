@@ -11,16 +11,18 @@ import {
   toPolicy,
 } from "@/lib/server/engine/payments";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
+import { requireCreator } from "@/lib/server/agents";
 import { fromBaseUnits } from "@/lib/shared/amounts";
 
 type P = { params: Promise<{ id: string }> };
 
 /**
- * Live treasury state, read from Solana (authoritative) plus engine budget usage.
+ * Creator-only: live treasury state, read from Solana (authoritative) plus engine budget usage.
  * `?asset=usdc` (default) or `?asset=token` for the agent's own-token rewards treasury.
  */
 export const GET = handler(async (req: Request, { params }: P) => {
   const { id } = await params;
+  await requireCreator(id); // budget usage and payment counts are creator-only
   const q = new URL(req.url).searchParams.get("asset");
   const asset = q === "token" ? "token" : q === "sol" ? "sol" : "usdc";
   const { agent, treasury } = await loadAgent(id, asset);

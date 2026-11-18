@@ -35,7 +35,7 @@ function fallbackText(p: Portfolio, prev: Brief | null) {
     `Snapshot: $${p.totalUsd}${change}. ${top || "No priced holdings."}`,
     `Allocation: SOL ${p.solPct}%, stablecoins ${p.stablePct}%, other tokens ${p.memePct}%.`,
     p.flags.length ? `Watch: ${p.flags.join("; ")}.` : "Watch: nothing flagged.",
-    "Ideas: set ANTHROPIC_API_KEY to get written ideas in each brief.",
+    "Ideas: written ideas are temporarily unavailable; ask the agent in the terminal for ideas.",
   ].join("\n");
 }
 

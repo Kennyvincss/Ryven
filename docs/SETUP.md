@@ -78,8 +78,11 @@ The public Solana RPC is heavily rate-limited. Create a free account at https://
 copy your **mainnet RPC URL** and set it in `.env`:
 
 ```
-NEXT_PUBLIC_SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=...
+SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=...
 ```
+
+This URL stays on your server: browsers talk to Solana through Ryven's `/api/rpc` relay, so
+visitors never see your API key.
 
 ### 2e. IPFS for coin images (Pinata)
 
@@ -198,7 +201,7 @@ Run `npm run db:migrate` again from your computer after every `git pull` that ad
    | `AGENT_KEY_ENCRYPTION_KEY` | from `.env` (must be the same, or existing agents can't sign) |
    | `FEE_PAYER_SECRET_KEY` | from `.env` |
    | `ANTHROPIC_API_KEY` | from `.env` |
-   | `NEXT_PUBLIC_SOLANA_RPC_URL` | your Helius mainnet URL (required: the public RPC blocks most cloud servers) |
+   | `SOLANA_RPC_URL` | your Helius mainnet URL (required: the public RPC blocks most cloud servers). Server-only, never shown to visitors |
    | `PINATA_JWT` | from `.env` (optional on Vercel, recommended) |
    | `PUMPFUN_ENABLED` | `true` if you use pump.fun launches |
    | `ADMIN_WALLETS` | your wallet address (optional) |

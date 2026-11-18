@@ -48,7 +48,7 @@ type AgentResp = {
     trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] };
     treasury: { address: string; mint: string } | null;
   };
-  private: { instructions: string } | null;
+  private: { instructions: string; pausedReason: string | null; trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] } } | null;
   isCreator: boolean;
   token: { mint: string; name: string; symbol: string } | null;
   contributors: Contributor[];
@@ -120,7 +120,7 @@ function Console({ id }: { id: string }) {
                 agent key <AddressLink address={a.signerPubkey} network={a.network} />
               </span>
             </div>
-            {a.status === "paused" && a.pausedReason && <div className="mt-1 text-xs text-warn">{a.pausedReason}</div>}
+            {a.status === "paused" && d.private?.pausedReason && <div className="mt-1 text-xs text-warn">{d.private.pausedReason}</div>}
           </div>
         </div>
         <div className="flex gap-2">
@@ -176,7 +176,7 @@ function Console({ id }: { id: string }) {
                   <SettingsPanel agent={a} instructions={d.private?.instructions ?? ""} onSaved={refreshAll} />
                   <TokenRewardSettings agentId={id} symbol={d.token?.symbol ?? "TOKEN"} value={a.tokenPolicy} onSaved={refreshAll} />
                   <TokenRewardSettings agentId={id} symbol="SOL" asset="sol" value={a.solPolicy} onSaved={refreshAll} />
-                  <TradingSettings agentId={id} value={a.trading} onSaved={refreshAll} />
+                  {d.private && <TradingSettings agentId={id} value={d.private.trading} onSaved={refreshAll} />}
                 </>
               )}
             </div>

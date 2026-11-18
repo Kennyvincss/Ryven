@@ -14,22 +14,28 @@ export function json(data: unknown, init?: ResponseInit) {
   });
 }
 
+/** Detailed setup hints only on a developer's machine; visitors of a deployed site get plain messages. */
+const DEV = process.env.NODE_ENV !== "production";
+
 export function errorResponse(e: unknown) {
   if (e instanceof AuthError || e instanceof EngineError) return json({ error: e.message }, { status: e.status });
-  if (e instanceof ZodError) return json({ error: "Invalid input", issues: e.issues }, { status: 400 });
-  if (e instanceof ConfigError) return json({ error: e.message, config: true }, { status: 503 });
+  if (e instanceof ZodError) return json({ error: "Invalid input", issues: e.issues.map((i) => ({ path: i.path, message: i.message })) }, { status: 400 });
+  if (e instanceof ConfigError) {
+    console.error(e);
+    return json({ error: DEV ? e.message : "This feature is temporarily unavailable. Please try again later." }, { status: 503 });
+  }
   const code = (e as { code?: string; cause?: { code?: string } })?.code ?? (e as { cause?: { code?: string } })?.cause?.code;
   if (code === "42703" || code === "42P01" || code === "42704") {
     // undefined column / table / type: the database is older than the code.
-    console.error(e);
-    return json({ error: 'The database is out of date. Stop the app, run "npm run db:migrate", then start it again.' }, { status: 503 });
+    console.error("Database schema is out of date: run npm run db:migrate.", e);
+    return json({ error: DEV ? 'The database is out of date. Stop the app, run "npm run db:migrate", then start it again.' : "Ryven is being updated. Please try again in a few minutes." }, { status: 503 });
   }
   if (code === "ECONNREFUSED" || code === "28P01" || code === "ENOTFOUND") {
-    console.error(e);
-    return json({ error: 'Cannot connect to the database. Check DATABASE_URL in .env (run "npm run db:migrate" to test it).' }, { status: 503 });
+    console.error("Cannot connect to the database: check DATABASE_URL.", e);
+    return json({ error: DEV ? 'Cannot connect to the database. Check DATABASE_URL in .env (run "npm run db:migrate" to test it).' : "Ryven is temporarily unavailable. Please try again in a few minutes." }, { status: 503 });
   }
   console.error(e);
-  return json({ error: "Internal error" }, { status: 500 });
+  return json({ error: "Something went wrong. Please try again." }, { status: 500 });
 }
 
 export function handler<A extends unknown[]>(fn: (req: Request, ...args: A) => Promise<Response>) {

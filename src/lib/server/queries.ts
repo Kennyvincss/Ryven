@@ -47,7 +47,6 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
     objectives: a.objectives,
     avatarSeed: a.avatarSeed,
     status: a.status,
-    pausedReason: a.pausedReason,
     mode: a.mode,
     network: a.network,
     creatorWallet: a.creatorWallet,
@@ -75,12 +74,6 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
             dailyLimit: fromBaseUnits(a.solDailyLimit, 9),
           }
         : null,
-    trading: {
-      mode: a.tradingMode,
-      maxSolPerTrade: fromBaseUnits(a.tradeMaxSol, 9),
-      dailySol: fromBaseUnits(a.tradeDailySol, 9),
-      mints: a.tradeMints,
-    },
     treasury: treasury
       ? {
           address: treasury.address,
@@ -100,12 +93,27 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
 }
 export type AgentView = ReturnType<typeof agentView>;
 
-/** Creator-only fields. */
+/** Creator-only fields (never in public responses). */
 export function agentPrivateView(a: Agent) {
-  return { instructions: a.instructions };
+  return {
+    instructions: a.instructions,
+    pausedReason: a.pausedReason,
+    trading: {
+      mode: a.tradingMode,
+      maxSolPerTrade: fromBaseUnits(a.tradeMaxSol, 9),
+      dailySol: fromBaseUnits(a.tradeDailySol, 9),
+      mints: a.tradeMints,
+    },
+  };
 }
 
+/** A payment as visitors see it: no internal policy checks or error details. */
 export function paymentPublicView(p: Payment) {
+  return { ...paymentCreatorView(p), policy: null, error: null, source: null };
+}
+
+/** A payment as its agent's creator (or an admin) sees it. */
+export function paymentCreatorView(p: Payment) {
   return {
     id: p.id,
     recipient: p.recipient,
@@ -128,6 +136,7 @@ export function paymentPublicView(p: Payment) {
   };
 }
 export type PaymentPublicView = ReturnType<typeof paymentPublicView>;
+export type PaymentCreatorView = ReturnType<typeof paymentCreatorView>;
 
 export type AgentStats = {
   confirmedPayments: number;

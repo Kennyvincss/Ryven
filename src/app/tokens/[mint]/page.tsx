@@ -157,7 +157,7 @@ export default function TokenPage() {
               ) : t.launchMode === "fixed_supply" ? (
                 <Alert tone="info" title="No bonding curve for this token">
                   This token was launched with a fixed supply minted to its creator, so it has no on-chain curve market on Ryven. Bonding-curve launches
-                  require the <code className="font-mono">ryven_curve</code> program{config?.curveProgramId ? "" : ", which is not deployed on this deployment (see docs/SETUP.md)"}.
+                  require the <code className="font-mono">ryven_curve</code> program{config?.curveProgramId ? "" : ", which isn't live yet"}.
                   Holders can still transfer it with any Solana wallet.
                 </Alert>
               ) : (

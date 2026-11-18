@@ -226,7 +226,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                   >
                     <div className="font-medium">pump.fun · mainnet (real SOL)</div>
                     <div className="text-xs text-muted">
-                      {config.pumpfunReady ? "Shows on pump.fun with its bonding curve. Agents not supported yet." : "Needs PINATA_JWT on the server (pump.fun metadata must be on IPFS)."}
+                      {config.pumpfunReady ? "Shows on pump.fun with its bonding curve. Agents not supported yet." : "pump.fun launches are temporarily unavailable."}
                     </div>
                   </button>
                 ) : (
@@ -265,9 +265,6 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                 I understand this spends real SOL and creates a public coin on pump.fun.
               </label>
             </div>
-          )}
-          {!config?.ipfsEnabled && config && (
-            <p className="text-xs text-faint">Metadata is hosted by this Ryven server (IPFS/Pinata not configured).</p>
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
@@ -352,8 +349,8 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
               <TriangleAlert className="size-4" /> This agent runs on Solana mainnet with real USDC
             </div>
             <p className="text-xs text-text/80">
-              Its treasury is a USDC account you own; it can only spend the allowance you give it, within the limits above. Start small. Network
-              fees for its payments are paid by this Ryven server&apos;s fee payer, which needs real SOL on mainnet.
+              Its treasury is a USDC account you own; it can only spend the allowance you give it, within the limits above. Start small. Ryven
+              pays the network fees for its payments.
             </p>
             <label className="flex items-start gap-2 text-xs">
               <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" /> I understand this agent moves real

@@ -336,7 +336,16 @@ instruction ─▶ Claude (tool: propose_payments) ─▶ ENGINE
 * The LLM's tools are an allowlist; none of them change limits, approve, unpause
   or sign. Tool inputs are re-validated with zod in the engine (`strict: true` schemas).
 * Rate limiting on auth, terminal and payment routes.
-* Secrets only in server env vars; `NEXT_PUBLIC_*` contains nothing sensitive.
+* Secrets only in server env vars; `NEXT_PUBLIC_*` contains nothing sensitive. The RPC URL
+  (which carries the provider API key) is server-only: browsers use the `/api/rpc` relay
+  (method allowlist, size cap, per-IP rate limit).
+* Public vs private data: visitors see an agent's profile, spending rules, confirmed payments
+  and on-chain facts (launch, deposits, pause/resume). Everything else is creator-only:
+  instructions, trading settings, policy decisions, failed/rejected payments, approvals,
+  contributors not yet approved, budget usage, briefs, alerts and the private activity log
+  (`PUBLIC_ACTIVITY_TYPES` in `engine/activity.ts`).
+* In production, error responses are plain messages; setup hints (env vars, commands) and
+  provider errors only appear in the server log, or locally in development.
 * Global emergency pause (admin) and per-agent pause (creator / agent itself).
 * The bonding-curve program is unaudited and not deployed; agent payments only use the standard SPL Token / Token-2022 programs.
 

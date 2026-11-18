@@ -22,7 +22,8 @@ export type Payment = {
   source: string;
   signature: string | null;
   explorerUrl: string | null;
-  policy: { decision: string; summary: string; checks: { id: string; label: string; passed: boolean; detail: string; effect?: string }[] };
+  /** null for visitors: internal policy checks are creator-only */
+  policy: { decision: string; summary: string; checks: { id: string; label: string; passed: boolean; detail: string; effect?: string }[] } | null;
   error: string | null;
   createdAt: string;
   confirmedAt: string | null;
@@ -45,7 +46,7 @@ export type TreasuryState = {
   deposits: { signature: string; from: string; amount: string; at: string }[];
 };
 
-export function PolicyChecks({ checks }: { checks: Payment["policy"]["checks"] }) {
+export function PolicyChecks({ checks }: { checks: NonNullable<Payment["policy"]>["checks"] }) {
   return (
     <ul className="space-y-1">
       {checks.map((c) => (
@@ -95,7 +96,7 @@ export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; on
                     to <AddressLink address={p.recipient} network={p.network} /> · {timeAgo(p.createdAt)}
                   </div>
                   <div className="mt-1 text-xs text-text/80">“{p.reason}”</div>
-                  <div className="mt-1 text-[11px] text-warn">{p.policy.summary}</div>
+                  <div className="mt-1 text-[11px] text-warn">{p.policy?.summary}</div>
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
@@ -114,7 +115,7 @@ export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; on
                   <div className="mb-2 text-[11px] uppercase tracking-wider text-faint">
                     Category {p.category} · source {p.source} · id {p.id.slice(0, 8)}
                   </div>
-                  <PolicyChecks checks={p.policy.checks} />
+                  {p.policy && <PolicyChecks checks={p.policy.checks} />}
                 </div>
               )}
             </li>
@@ -175,7 +176,7 @@ export function PaymentsTable({ payments, onChange }: { payments: Payment[]; onC
                 {p.confirmedAt && <div>Confirmed: {new Date(p.confirmedAt).toLocaleString()}</div>}
               </div>
               {p.error && <div className="text-xs text-danger">{p.error}</div>}
-              <PolicyChecks checks={p.policy.checks} />
+              {p.policy && <PolicyChecks checks={p.policy.checks} />}
               {p.status === "executing" && onChange && (
                 <Button size="sm" variant="secondary" onClick={() => api(`/api/payments/${p.id}/reconcile`, { method: "POST" }).then(onChange)}>
                   Re-check on-chain status
@@ -276,7 +277,7 @@ export function ManualPayment({
       {error && <Alert tone="danger">{error}</Alert>}
       {result && (
         <Alert tone={result.status === "confirmed" ? "accent" : result.status === "awaiting_approval" ? "warn" : "danger"} title={result.status.replace("_", " ")}>
-          {result.status === "confirmed" && result.signature ? <TxLink signature={result.signature} label="View on Explorer" network={result.network} /> : result.error ?? result.policy.summary}
+          {result.status === "confirmed" && result.signature ? <TxLink signature={result.signature} label="View on Explorer" network={result.network} /> : result.error ?? result.policy?.summary}
         </Alert>
       )}
     </div>

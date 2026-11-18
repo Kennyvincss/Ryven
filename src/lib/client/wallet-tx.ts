@@ -1,6 +1,7 @@
 "use client";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { SendTransactionError, type Connection, type Keypair, type Transaction } from "@solana/web3.js";
+import { confirmByPolling } from "../solana/confirm";
 
 /**
  * Sends a transaction through the user's wallet (the wallet shows it for approval and
@@ -22,8 +23,9 @@ export async function sendWalletTransaction(
   } catch (e) {
     throw new Error(friendlyError(e));
   }
-  const res = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-  if (res.value.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(res.value.err)}`);
+  // HTTP polling (the browser talks to Solana through Ryven's /api/rpc relay, which has no WebSocket).
+  const res = await confirmByPolling(connection, signature, lastValidBlockHeight, "confirmed");
+  if (res.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(res.err)}`);
   return signature;
 }
 

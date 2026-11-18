@@ -3,7 +3,7 @@ import { approvePayment, EngineError, reconcilePayment, rejectPayment } from "@/
 import { db, schema } from "@/lib/server/db";
 import { eq } from "drizzle-orm";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
-import { paymentPublicView } from "@/lib/server/queries";
+import { paymentCreatorView } from "@/lib/server/queries";
 
 /** Creator approval decisions. Server-side authorization: only the agent's creator. */
 export const POST = handler(async (req: Request, { params }: { params: Promise<{ id: string; action: string }> }) => {
@@ -18,7 +18,7 @@ export const POST = handler(async (req: Request, { params }: { params: Promise<{
     if (!existing) throw new EngineError("Payment not found", 404);
     p = await reconcilePayment(id);
   } else throw new EngineError("Unknown action", 404);
-  return json({ payment: paymentPublicView(p) });
+  return json({ payment: paymentCreatorView(p) });
 });
 
 /** Waits on the AI and/or Solana confirmation: allow up to 5 minutes on serverless hosts (Vercel). */

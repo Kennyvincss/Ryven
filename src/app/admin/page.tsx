@@ -92,7 +92,7 @@ export default function Admin() {
   const { session } = useSession();
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader eyebrow={<span className="flex items-center gap-1"><ShieldCheck className="size-3.5" /> Administration</span>} title="Platform monitor" subtitle="Restricted to wallets listed in ADMIN_WALLETS. Enforced server-side." />
+      <PageHeader eyebrow={<span className="flex items-center gap-1"><ShieldCheck className="size-3.5" /> Administration</span>} title="Platform monitor" subtitle="Restricted to platform administrators." />
       <AuthGate title="Administrator sign-in">{session?.isAdmin ? <Inner /> : <Alert tone="danger">This wallet is not an administrator.</Alert>}</AuthGate>
     </div>
   );

@@ -702,7 +702,9 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         .update(schema.agents)
         .set({ status: "paused", pausedReason: `Agent self-paused: ${reason}`, updatedAt: new Date() })
         .where(eq(schema.agents.id, agent.id));
-      await logActivity({ agentId: agent.id, instructionId: ctx.instructionId, type: "agent_paused", status: "info", message: `Agent paused itself: ${reason}` });
+      // Public entry without the reason; the reason stays in the creator's private log.
+      await logActivity({ agentId: agent.id, instructionId: ctx.instructionId, type: "agent_paused", status: "info", message: "Agent paused itself" });
+      await logActivity({ agentId: agent.id, instructionId: ctx.instructionId, type: "agent_pause_reason", status: "info", message: `Pause reason: ${reason}` });
       ctx.emit({ type: "status", status: "completed", message: "Agent paused. All payments halted" });
       return { content: JSON.stringify({ paused: true }) };
     }
@@ -750,7 +752,7 @@ export async function runInstruction(agentId: string, text: string, emit: (e: Ag
   await logActivity({ agentId, instructionId, type: "instruction", status: "info", message: `Instruction received: "${text.slice(0, 200)}"`, isPublic: false });
 
   if (!serverEnv.anthropicApiKey) {
-    const msg = "AI is not configured on this server: set ANTHROPIC_API_KEY in your environment (see docs/SETUP.md). You can still send payments manually from the Treasury tab; they go through the same policy engine.";
+    const msg = "The AI agent is temporarily unavailable. You can still send payments manually from the Manual payment tab; they go through the same policy engine.";
     emit({ type: "error", message: msg });
     emit({ type: "done" });
     return;
@@ -823,17 +825,20 @@ export async function runInstruction(agentId: string, text: string, emit: (e: Ag
       messages.push({ role: "user", content: toolResults });
     }
   } catch (e) {
-    let message = (e as Error).message;
-    if (e instanceof Anthropic.AuthenticationError) message = "Anthropic API key is invalid.";
-    else if (e instanceof Anthropic.RateLimitError) message = "AI rate limit reached. Try again shortly.";
+    // Full details go to the server log; the creator gets a plain message (no keys, billing or
+    // provider internals). Developers running locally still see the detail.
+    console.error("Agent instruction failed:", e);
+    const dev = process.env.NODE_ENV !== "production";
+    let message = "The agent hit an unexpected problem. Please try again. (Manual payments still work.)";
+    if (e instanceof Anthropic.RateLimitError) message = "The AI is busy right now. Try again in a minute.";
     else if (e instanceof Anthropic.APIError) {
-      // Pull the human-readable message out of the API error body instead of showing raw JSON.
       const body = e.error as { error?: { message?: string } } | undefined;
       const detail = body?.error?.message ?? e.message;
-      message = /credit balance is too low/i.test(detail)
-        ? "Your Anthropic account has no API credit. Add credit at console.anthropic.com → Billing, then try again. (Manual payments still work meanwhile.)"
-        : `AI service error (${e.status}): ${detail}`;
-    }
+      if (dev && e instanceof Anthropic.AuthenticationError) message = "Anthropic API key is invalid (ANTHROPIC_API_KEY).";
+      else if (dev && /credit balance is too low/i.test(detail)) message = "Your Anthropic account has no API credit. Add credit at console.anthropic.com → Billing.";
+      else if (dev) message = `AI service error (${e.status}): ${detail}`;
+      else message = "The AI agent is temporarily unavailable. Please try again later. (Manual payments still work.)";
+    } else if (dev) message = (e as Error).message;
     emit({ type: "error", message });
     replies.push(`(error: ${message})`);
   }

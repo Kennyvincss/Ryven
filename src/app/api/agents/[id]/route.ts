@@ -5,7 +5,7 @@ import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
 import { handler, json } from "@/lib/server/http";
-import { agentPrivateView, agentStats, agentView, paymentPublicView, tokenView } from "@/lib/server/queries";
+import { agentPrivateView, agentStats, agentView, paymentCreatorView, paymentPublicView, tokenView } from "@/lib/server/queries";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -32,17 +32,17 @@ export const GET = handler(async (_req: Request, { params }: P) => {
     private: isCreator ? agentPrivateView(agent) : null,
     isCreator,
     token: token ? tokenView(token) : null,
-    contributors: contributors.map((c) => ({
+    contributors: contributors.filter((c) => isCreator || c.status === "approved").map((c) => ({
       id: c.id,
       wallet: c.wallet,
       handle: c.handle,
       role: c.role,
       status: c.status,
-      activityScore: c.activityScore,
+      activityScore: isCreator ? c.activityScore : undefined,
       note: isCreator ? c.note : undefined,
       createdAt: c.createdAt.toISOString(),
     })),
-    payments: payments.map(paymentPublicView),
+    payments: payments.map((p) => (isCreator ? paymentCreatorView(p) : paymentPublicView(p))),
   });
 });
 
