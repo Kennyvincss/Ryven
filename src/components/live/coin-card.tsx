@@ -36,13 +36,14 @@ export function CoinCard({
       <Link href={`/trade/${c.mint}`} className="absolute inset-0" aria-label={`Open ${c.symbol}`} />
       <div className="flex gap-3">
         <TokenImage src={c.icon} symbol={c.symbol} size={48} className="rounded-lg" />
-        <div className="min-w-0 flex-1 pr-14">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-sm font-semibold">{c.symbol}</span>
-              <span className="truncate text-xs text-muted">{c.name}</span>
-            </div>
-            <span className="shrink-0 font-mono text-[11px] text-accent-2">{age(graduated ? (c.graduatedAt ?? c.createdAt) : c.createdAt, now)}</span>
+        {/* right padding keeps every line clear of the ⚡ quick-buy button */}
+        <div className="min-w-0 flex-1 pr-[4.5rem]">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="truncate text-sm font-semibold">{c.symbol}</span>
+            <span className="shrink-0 font-mono text-[11px] text-accent-2" title={graduated ? "Since graduation" : "Age"}>
+              {age(graduated ? (c.graduatedAt ?? c.createdAt) : c.createdAt, now)}
+            </span>
+            <span className="truncate text-xs text-muted">{c.name}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[11px]">
             <Metric label="MC" value={usd(c.mcap)} />

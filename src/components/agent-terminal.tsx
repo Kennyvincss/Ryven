@@ -5,6 +5,8 @@ import { api } from "@/lib/client/api";
 import { explorerTx, usdcLabel } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
 import { AgentAvatar, cn } from "./ui";
+import { ActionCard, ActionDialog, type ConsoleAction } from "./console-actions";
+import type { AgentRef } from "./treasury-actions";
 
 type PaymentView = {
   id: string;
@@ -23,6 +25,7 @@ type Event =
   | { type: "status"; status: string; message: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "payment"; payment: PaymentView }
+  | { type: "action"; action: ConsoleAction }
   | { type: "assistant"; text: string }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -31,6 +34,7 @@ type Entry =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
   | { kind: "payment"; payment: PaymentView }
+  | { kind: "action"; action: ConsoleAction }
   | { kind: "error"; text: string };
 
 const SUGGESTIONS = [
@@ -87,14 +91,20 @@ export function AgentTerminal({
   avatarSeed,
   aiEnabled,
   onActivity,
+  agent,
 }: {
   agentId: string;
   agentName: string;
   avatarSeed: string;
   aiEnabled: boolean;
   onActivity?: () => void;
+  /** enables the one-click action popups */
+  agent?: AgentRef;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [openAction, setOpenAction] = useState<ConsoleAction | null>(null);
+  const [resolved, setResolved] = useState<Record<string, string>>({});
+  const lastText = useRef<string>("");
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -113,6 +123,7 @@ export function AgentTerminal({
     if (!text.trim() || running) return;
     setInput("");
     setRunning(true);
+    lastText.current = text;
     setEntries((e) => [...e, { kind: "user", text }]);
     try {
       const res = await fetch(`/api/agents/${agentId}/terminal`, {
@@ -154,6 +165,11 @@ export function AgentTerminal({
       // until the agent answers. Payments still appear as cards.
       case "status":
       case "tool_call":
+        break;
+      case "action":
+        setEntries((x) => (x.some((e) => e.kind === "action" && e.action.key === ev.action.key) ? x : [...x, { kind: "action", action: ev.action }]));
+        // pop it up right away (the first one; the rest wait as cards)
+        setOpenAction((cur) => cur ?? ev.action);
         break;
       case "payment":
         setEntries((x) => {
@@ -221,6 +237,12 @@ export function AgentTerminal({
                 <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-text">{e.text}</div>
               </div>
             );
+          if (e.kind === "action")
+            return (
+              <div key={i} className="pl-6">
+                <ActionCard action={e.action} resolved={resolved[e.action.key]} onOpen={() => setOpenAction(e.action)} />
+              </div>
+            );
           if (e.kind === "payment")
             return (
               <div key={i} className="pl-6 font-sans">
@@ -242,6 +264,21 @@ export function AgentTerminal({
         )}
       </div>
 
+      {openAction && agent && (
+        <ActionDialog
+          action={openAction}
+          agent={agent}
+          onClose={() => {
+            setOpenAction(null);
+            onActivity?.();
+          }}
+          onResolved={(key, text) => {
+            setResolved((r) => ({ ...r, [key]: text }));
+            onActivity?.();
+          }}
+          onRetry={lastText.current ? () => send(lastText.current) : undefined}
+        />
+      )}
       <div className="border-t border-line p-3">
         <div className="scrollbar-thin mb-2 flex gap-1.5 overflow-x-auto pb-1">
           {SUGGESTIONS.map((s) => (

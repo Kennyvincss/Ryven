@@ -26,6 +26,7 @@ import { getMarketData } from "../market";
 import { getTradingActivity } from "../live-market";
 import { analyzePortfolio, portfolioForModel } from "../portfolio";
 import { listBriefs } from "./brief";
+import { actionsForPayment, actionsForTrade, type ConsoleAction } from "./actions";
 import { alertView, cancelAlert, createAlert, listAlerts } from "../alerts";
 import { describeAlert } from "../alert-rules";
 import { listTrades, proposeSwap, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
@@ -40,6 +41,8 @@ export type AgentEvent =
   | { type: "status"; status: ActivityStatus; message: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "payment"; payment: PaymentView }
+  /** something only the creator can do: the console pops it up with a button */
+  | { type: "action"; action: ConsoleAction }
   | { type: "assistant"; text: string }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -229,7 +232,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "swap_tokens",
     description:
-      "Swap one token for another on Solana MAINNET through Jupiter (best route across DEXes, real funds). Tokens: \"SOL\", \"USDC\", \"USDT\", \"own\" (this agent's coin) or a mint address on the creator's trading allowlist. amount is in INPUT token units, e.g. \"0.1\" SOL or \"25\" USDC. The Ryven trading engine (not you) values the swap in SOL, checks the creator's per-trade and daily limits, gets a quote, validates the transaction and simulates it, refusing anything that would spend more than quoted. Proposal mode: the creator signs it in the Trading tab. Autonomous mode: it runs from your trading wallet. Only swap when the creator asked for it or their standing instructions say so.",
+      "Swap one token for another on Solana MAINNET through Jupiter (best route across DEXes, real funds). Tokens: \"SOL\", \"USDC\", \"USDT\", \"own\" (this agent's coin) or a mint address on the creator's trading allowlist. amount is in INPUT token units, e.g. \"0.1\" SOL or \"25\" USDC. The Ryven trading engine (not you) values the swap in SOL, checks the creator's per-trade and daily limits, gets a quote, validates the transaction and simulates it, refusing anything that would spend more than quoted. Proposal mode: the creator gets a popup to sign it. Autonomous mode: it runs from your trading wallet. Only swap when the creator asked for it or their standing instructions say so.",
     input_schema: {
       type: "object",
       properties: {
@@ -479,6 +482,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
           p = await executePayment(p.id);
         }
         ctx.emit({ type: "payment", payment: paymentView(p) });
+        for (const action of actionsForPayment(p)) ctx.emit({ type: "action", action });
         final.push(p);
       }
       return {
@@ -603,7 +607,9 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
               ? "Trade proposal waiting for the creator to sign"
               : `Trade ${trade.status}: ${trade.error ?? trade.policy.summary}`,
       });
-      return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
+      const actions = actionsForTrade(trade, agent);
+      for (const action of actions) ctx.emit({ type: "action", action });
+      return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate, popup_shown_to_creator: actions.map((a) => a.title) }) };
     }
     case "set_price_alert": {
       const parsed = AlertInput.safeParse(input);
@@ -686,7 +692,9 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
                 ? "Swap proposal waiting for the creator to sign"
                 : `Swap ${trade.status}: ${trade.error ?? trade.policy.summary}`,
         });
-        return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
+        const actions = actionsForTrade(trade, agent);
+        for (const action of actions) ctx.emit({ type: "action", action });
+        return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate, popup_shown_to_creator: actions.map((a) => a.title) }) };
       } catch (e) {
         if (e instanceof EngineError) return { content: e.message, isError: true };
         throw e;
@@ -768,11 +776,12 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - For buys, sells, traders or recent trades use get_trading_activity (windows: 5m, 1h, 6h, 24h; for other windows give the nearest ones and say so).
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
-- Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
+- Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (the console then shows the creator a popup to turn it on). Your own coin is always allowed. Proposal mode: the creator gets a popup to sign each trade. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
 - Price alerts: you CAN set alerts with set_price_alert (price or market cap, above/below a USD level, or rises/falls X% from now) on any mainnet token, list them and cancel them. When the creator asks to be alerted, warned or told when a price/market cap hits something, call set_price_alert. "Alert me if X doubles" = rises_pct 100; "if it drops 20%" = falls_pct 20; "if market cap hits 1M" = market_cap above 1000000. Confirm the exact target back. Alerts only notify; they never trade.
 - Wallet analysis and ideas: when the creator asks about their wallet, portfolio, what they hold, how they're doing or for ideas, call analyze_portfolio ("creator"; include_activity true if they ask what changed or what they did). Lead with the total value and allocation, then the flags that matter, then 2-4 specific ideas grounded in the numbers (quote them). Ideas are suggestions, not financial advice: say so briefly. Offer to propose a trade or swap for an idea, but don't place one unless asked. Never suggest interacting with unknown airdropped tokens.
 - Swaps: you CAN swap tokens on Solana mainnet through Jupiter with swap_tokens (SOL, USDC, USDT, your own coin, or allowlisted coins), e.g. "swap 0.1 SOL to USDC". When the creator asks for a swap, call swap_tokens; the engine checks limits and tells you if trading is off or a token isn't allowed. Same proposal/autonomous rules as trading.
 - Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.
+- When something needs the creator (approving or signing, turning a feature on, adding a coin or contributor, raising a limit, funding a treasury), the console automatically pops up a dialog with the right button (tool results list it in popup_shown_to_creator). Say in one short sentence what to click in that popup. Never send them to a tab or settings page.
 - Keep replies short (under 120 words; portfolio analyses up to 200), in plain text, no markdown tables. Amounts in USDC.`;
 }
 

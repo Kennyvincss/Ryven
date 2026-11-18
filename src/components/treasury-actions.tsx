@@ -18,7 +18,7 @@ import { toBaseUnits } from "@/lib/shared/amounts";
 import { APP_NETWORK, CIRCLE_DEVNET_USDC, USDC_DECIMALS, publicConfig, usdcLabelFor } from "@/lib/shared/config";
 import { Alert, Button, Field, Input, TxLink } from "./ui";
 
-type AgentRef = {
+export type AgentRef = {
   id: string;
   signerPubkey: string;
   creatorWallet: string;

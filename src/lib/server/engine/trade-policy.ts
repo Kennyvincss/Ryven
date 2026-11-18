@@ -40,7 +40,7 @@ export const FEE_RESERVE_LAMPORTS = 10_000_000n;
 export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeContext): PolicyRecord {
   const checks: PolicyCheck[] = [];
   const add = (c: PolicyCheck) => checks.push(c);
-  add({ id: "trading_enabled", label: "Trading enabled", passed: p.mode !== "off", detail: p.mode === "off" ? "Trading is off. The creator can turn it on in the agent console → Permissions → pump.fun trading" : `Trading mode: ${p.mode}`, effect: "reject" });
+  add({ id: "trading_enabled", label: "Trading enabled", passed: p.mode !== "off", detail: p.mode === "off" ? "Trading is off for this agent" : `Trading mode: ${p.mode}`, effect: "reject" });
   add({ id: "agent_active", label: "Agent active", passed: p.agentStatus === "active", detail: p.agentStatus === "active" ? "Agent is active" : "Agent is paused", effect: "reject" });
   add({ id: "global_pause", label: "Platform enabled", passed: !ctx.globalPause, detail: ctx.globalPause ? "Platform payments/trading are paused by an administrator" : "Platform kill switch is off", effect: "reject" });
   if (t.action === "swap") {

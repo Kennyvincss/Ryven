@@ -5,6 +5,8 @@ import { api } from "@/lib/client/api";
 import { PAYMENT_CATEGORIES, usdcLabel } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
 import { PaymentStatus } from "./cards";
+import { useSignTrade } from "./console-actions";
+import { useApi } from "@/lib/client/hooks";
 import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "./agent-policy-form";
 import { AddressLink, Alert, Badge, Button, Card, CardHeader, Empty, Field, Input, Select, Textarea, TxLink, cn, timeAgo } from "./ui";
 
@@ -61,8 +63,28 @@ export function PolicyChecks({ checks }: { checks: NonNullable<Payment["policy"]
   );
 }
 
-export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; onChange: () => void }) {
+type PendingTrade = { id: string; action: string; amount: string; mint: string; reason: string; status: string; createdAt: string; swap: { inputAmount: string | null; inputSymbol: string; outputSymbol: string } | null };
+
+export function ApprovalsPanel({ payments, onChange, agentId }: { payments: Payment[]; onChange: () => void; agentId?: string }) {
   const pending = payments.filter((p) => p.status === "awaiting_approval");
+  // Trades the agent proposed wait here too, so everything that needs you is in one place.
+  const tq = useApi<{ trades: PendingTrade[] }>(agentId ? `/api/agents/${agentId}/trading` : null, { refreshMs: 10000 });
+  const trades = (tq.data?.trades ?? []).filter((t) => t.status === "awaiting_signature");
+  const signTrade = useSignTrade();
+  async function tradeAct(t: PendingTrade, kind: "sign" | "dismiss") {
+    setBusy(t.id + kind);
+    setError(null);
+    try {
+      if (kind === "sign") await signTrade(t.id);
+      else await api(`/api/trades/${t.id}/cancel`, { method: "POST" });
+      tq.reload();
+      onChange();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,10 +102,38 @@ export function ApprovalsPanel({ payments, onChange }: { payments: Payment[]; on
   }
   return (
     <Card>
-      <CardHeader title="Approval queue" subtitle="Payments the policy engine won't execute without you" icon={<Clock className="size-4" />} right={pending.length ? <Badge tone="warn">{pending.length}</Badge> : null} />
-      {pending.length === 0 ? (
+      <CardHeader
+        title="Approval queue"
+        subtitle="Payments and trades waiting for you"
+        icon={<Clock className="size-4" />}
+        right={pending.length + trades.length ? <Badge tone="warn">{pending.length + trades.length}</Badge> : null}
+      />
+      {trades.length > 0 && (
+        <ul className="divide-y divide-line border-b border-line">
+          {trades.map((t) => (
+            <li key={t.id} className="px-5 py-4">
+              <div className="font-mono text-base font-semibold">
+                {t.action === "swap" && t.swap ? `${t.swap.inputAmount} ${t.swap.inputSymbol} → ${t.swap.outputSymbol}` : `${t.action} ${t.amount}`}
+              </div>
+              <div className="mt-0.5 text-xs text-muted">
+                {t.action === "swap" ? "Swap" : "Trade"} proposed by the agent · {timeAgo(t.createdAt)} · <span className="font-mono">{shortAddress(t.mint, 4)}</span>
+              </div>
+              <div className="mt-1 text-xs text-text/80">“{t.reason}”</div>
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" onClick={() => tradeAct(t, "sign")} loading={busy === t.id + "sign"}>
+                  Sign &amp; send
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => tradeAct(t, "dismiss")} loading={busy === t.id + "dismiss"}>
+                  Dismiss
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {pending.length === 0 && trades.length === 0 ? (
         <div className="px-5 py-6 text-center text-sm text-muted">Nothing waiting for approval.</div>
-      ) : (
+      ) : pending.length === 0 ? null : (
         <ul className="divide-y divide-line">
           {pending.map((p) => (
             <li key={p.id} className="px-5 py-4">

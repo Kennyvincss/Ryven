@@ -138,7 +138,7 @@ function Console({ id }: { id: string }) {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-5">
-          <AgentTerminal agentId={id} agentName={a.name} avatarSeed={a.avatarSeed} aiEnabled={!!config?.aiEnabled} onActivity={refreshAll} />
+          <AgentTerminal agentId={id} agentName={a.name} avatarSeed={a.avatarSeed} aiEnabled={!!config?.aiEnabled} onActivity={refreshAll} agent={agentRef} />
 
           <Card>
             <Tabs
@@ -255,7 +255,7 @@ function Console({ id }: { id: string }) {
             </div>
           </Card>
 
-          <ApprovalsPanel payments={d.payments} onChange={refreshAll} />
+          <ApprovalsPanel payments={d.payments} onChange={refreshAll} agentId={id} />
 
           <Card>
             <CardHeader title="Activity" subtitle="Structured log of everything the agent did" icon={<Activity className="size-4" />} />

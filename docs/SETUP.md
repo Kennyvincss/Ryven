@@ -170,7 +170,11 @@ calls `/api/cron/briefs` hourly (see `.env.example`).
 ### Live terminal and trading
 
 **Live** (top menu) shows pump.fun coins in three columns that update every few seconds:
-**New pairs**, **About to graduate** and **Graduated**. Hovering a column pauses it. Click a
+**New pairs**, **About to graduate** and **Graduated**. Hovering a column pauses it. Each
+column has **Filters** (token age, market cap, 24h volume, liquidity, holders, bonding-curve %,
+top-10 / dev / sniper share, has socials); they search the whole market, are saved in your
+browser, and accept shorthand like `10k` or `1.5m`. The data source returns at most 30 coins
+per column. Click a
 coin for its page: live chart (1s to 1d, market cap or price), live trades, safety info and
 a **Buy / Sell** panel. The ⚡ button on each card buys instantly with your **Quick buy**
 amount. pump.fun coins you launch on Ryven get the same chart and Buy/Sell on their token page.

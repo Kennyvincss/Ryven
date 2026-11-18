@@ -290,6 +290,20 @@ transfers to anyone else) → mainnet simulation (no more than the input + fees 
 wallet). Ryven never signs; the wallet does. Confirmation is by HTTP polling through the RPC
 relay.
 
+Column filters (`shared/live-filters.ts`, unit-tested) are sent to Jupiter where it supports
+them (age, market cap, volume, liquidity, holders, curve %, top-10 share) and re-checked on the
+server for every coin, plus dev/sniper share and socials, which Jupiter can't filter.
+
+### One-click actions in the console
+
+When the engine needs the creator, the agent emits an `action` event (`ai/actions.ts`, mapped
+from the failed policy check: approve a payment, sign a trade, turn on trading or SOL / token
+payments, allow a coin, add a contributor, raise a limit, fund a treasury or the trading
+wallet, resume the agent). The console pops up a dialog with the matching button
+(`components/console-actions.tsx`) and keeps a card in the terminal; **Retry my request**
+re-sends the instruction. Every change still goes through the creator-only API or the
+creator's own wallet. Proposed trades also appear in the Approval queue.
+
 The agent's `get_trading_activity` tool reads the same activity windows, so it can answer
 "how many buys and sells…" without guessing.
 

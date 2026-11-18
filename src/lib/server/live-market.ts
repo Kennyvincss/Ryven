@@ -6,6 +6,7 @@ import "server-only";
  * so traffic to the data source doesn't grow with the number of visitors. Read-only.
  */
 import { outboundFetch } from "./net";
+import { cleanFilter, passes, upstreamQuery, type ColumnFilter, type LiveColumn, type PulseFilters } from "../shared/live-filters";
 
 const DATAPI = "https://datapi.jup.ag";
 const LITE = "https://lite-api.jup.ag";
@@ -137,22 +138,37 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
 export type Pulse = { newPairs: LiveCoin[]; aboutToGraduate: LiveCoin[]; graduated: LiveCoin[]; updatedAt: string; partial: boolean };
 
 /** The three live columns: new pump.fun pairs, coins close to graduating, and just graduated. */
-export function getPulse(): Promise<Pulse> {
-  return cached("pulse", 2_500, async () => {
+export function getPulse(filters: PulseFilters = {}): Promise<Pulse> {
+  const f: Record<LiveColumn, ColumnFilter> = {
+    newPairs: cleanFilter(filters.newPairs),
+    aboutToGraduate: cleanFilter(filters.aboutToGraduate),
+    // graduated coins have no bonding curve
+    graduated: { ...cleanFilter(filters.graduated), curveMin: undefined, curveMax: undefined },
+  };
+  return cached(`pulse:${JSON.stringify(f)}`, 2_500, async () => {
+    const now = Date.now();
+    const keep = (col: LiveColumn) => (c: LiveCoin) => passes(c, f[col], now);
     try {
-      const body = { recent: { launchpads: ["pump.fun"] }, aboutToGraduate: { launchpads: ["pump.fun"] }, graduated: { launchpads: ["pump.fun"] } };
+      const q = (col: LiveColumn) => ({ launchpads: ["pump.fun"], ...upstreamQuery(f[col]) });
+      const body = { recent: q("newPairs"), aboutToGraduate: q("aboutToGraduate"), graduated: q("graduated") };
       const d = await getJson<Record<"recent" | "aboutToGraduate" | "graduated", { pools?: RawPool[] }>>(`${DATAPI}/v1/pools/gems`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
       const map = (k: "recent" | "aboutToGraduate" | "graduated") => (d[k]?.pools ?? []).filter((p) => p?.baseAsset?.id).map((p) => toLiveCoin(p.baseAsset, p));
-      return { newPairs: map("recent"), aboutToGraduate: map("aboutToGraduate"), graduated: map("graduated"), updatedAt: new Date().toISOString(), partial: false };
+      return {
+        newPairs: map("recent").filter(keep("newPairs")),
+        aboutToGraduate: map("aboutToGraduate").filter(keep("aboutToGraduate")),
+        graduated: map("graduated").filter(keep("graduated")),
+        updatedAt: new Date().toISOString(),
+        partial: false,
+      };
     } catch (e) {
       console.error("Live feed (gems) unavailable, using fallback:", (e as Error).message);
       const recent = await getJson<RawAsset[]>(`${LITE}/tokens/v2/recent`).catch(() => [] as RawAsset[]);
       const pump = recent.filter((a) => a.launchpad === "pump.fun").map((a) => toLiveCoin(a));
-      return { newPairs: pump, aboutToGraduate: [], graduated: [], updatedAt: new Date().toISOString(), partial: true };
+      return { newPairs: pump.filter(keep("newPairs")), aboutToGraduate: [], graduated: [], updatedAt: new Date().toISOString(), partial: true };
     }
   });
 }

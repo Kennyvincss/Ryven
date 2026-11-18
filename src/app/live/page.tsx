@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, Pause, Radio, Search, Zap } from "lucide-react";
+import { ExternalLink, Pause, Radio, Search, SlidersHorizontal, Zap } from "lucide-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { CoinCard } from "@/components/live/coin-card";
+import { FilterPanel } from "@/components/live/filter-panel";
+import { activeCount, cleanFilter, type ColumnFilter, type PulseFilters } from "@/lib/shared/live-filters";
 import { Alert, cn } from "@/components/ui";
 import { SOL_MINT, compact, fromRaw, toRaw, type LiveCoin, type Pulse } from "@/lib/client/live";
 import { useSwap } from "@/lib/client/swap";
@@ -16,8 +18,12 @@ const COLUMNS: { key: ColumnKey; title: string; hint: string }[] = [
 ];
 
 const QB_KEY = "ryven:quickbuy";
+const FILTERS_KEY = "ryven:live-filters";
 
 function Column({
+  column,
+  filter,
+  onFilter,
   title,
   hint,
   coins,
@@ -26,6 +32,7 @@ function Column({
   onQuickBuy,
   buying,
   search,
+  pending,
 }: {
   title: string;
   hint: string;
@@ -35,13 +42,23 @@ function Column({
   onQuickBuy: (c: LiveCoin) => void;
   buying: string | null;
   search: string;
+  column: ColumnKey;
+  filter: ColumnFilter;
+  onFilter: (f: ColumnFilter) => void;
+  /** new filters applied, results not in yet */
+  pending: boolean;
 }) {
+  const [showFilters, setShowFilters] = useState(false);
+  const nFilters = activeCount(filter);
   // While the pointer is over a column its list is frozen, so cards don't jump under the cursor.
   const [hover, setHover] = useState(false);
-  const [frozen, setFrozen] = useState<LiveCoin[] | null>(null);
+  // The paused list remembers which filters it was taken under; a pause from before a filter change is ignored.
+  const [frozen, setFrozen] = useState<{ key: string; coins: LiveCoin[] } | null>(null);
+  const filterKey = JSON.stringify(filter);
   const known = useRef<Set<string>>(new Set());
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const shown = hover && frozen ? frozen : coins;
+  const paused = hover && !pending && !!frozen && frozen.key === filterKey;
+  const shown = paused ? frozen.coins : coins;
 
   useEffect(() => {
     const first = known.current.size === 0;
@@ -55,33 +72,63 @@ function Column({
   const list = q ? shown.filter((c) => c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.mint.toLowerCase() === q) : shown;
 
   return (
-    <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel"
-      onMouseEnter={() => {
-        setFrozen(coins);
-        setHover(true);
-      }}
-      onMouseLeave={() => {
-        setHover(false);
-        setFrozen(null);
-      }}
-    >
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
       <header className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
           <p className="text-[11px] text-faint">{hint}</p>
         </div>
-        {hover ? (
-          <span className="inline-flex items-center gap-1 text-[11px] text-warn">
-            <Pause className="size-3" /> Paused
-          </span>
-        ) : (
-          <span className="font-mono text-[11px] text-muted">{list.length}</span>
-        )}
+        <div className="flex items-center gap-2">
+          {paused ? (
+            <span className="inline-flex items-center gap-1 text-[11px] text-warn">
+              <Pause className="size-3" /> Paused
+            </span>
+          ) : (
+            <span className="font-mono text-[11px] text-muted">{list.length}</span>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowFilters((s) => !s)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px]",
+              nFilters ? "border-accent/50 text-accent" : "border-line-2 text-muted hover:text-text",
+            )}
+            aria-expanded={showFilters}
+          >
+            <SlidersHorizontal className="size-3" /> Filters{nFilters ? ` · ${nFilters}` : ""}
+          </button>
+        </div>
       </header>
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        {list.length === 0 ? (
-          <div className="px-4 py-10 text-center text-xs text-muted">{q ? "No matches." : "Waiting for coins…"}</div>
+      {showFilters && (
+        <FilterPanel
+          column={column}
+          value={filter}
+          onApply={(f) => {
+            // show the new results right away, never a paused (stale) list
+            setHover(false);
+            setFrozen(null);
+            onFilter(f);
+          }}
+          onClose={() => setShowFilters(false)}
+        />
+      )}
+      {/* Pausing only applies while the pointer is over the coin list itself. */}
+      <div
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto"
+        onMouseEnter={() => {
+          // never pause on a list that's about to be replaced by new filter results
+          setFrozen(pending ? null : { key: filterKey, coins });
+          setHover(true);
+        }}
+        onMouseLeave={() => {
+          setHover(false);
+          setFrozen(null);
+        }}
+      >
+        {pending ? (
+          <div className="px-4 py-10 text-center text-xs text-muted">Loading…</div>
+        ) : list.length === 0 ? (
+          <div className="px-4 py-10 text-center text-xs text-muted">{q ? "No matches." : nFilters ? "No coins match these filters right now." : "Waiting for coins…"}</div>
         ) : (
           list.map((c) => <CoinCard key={c.mint} c={c} now={now} fresh={fresh.has(c.mint)} quickBuy={quickBuy} onQuickBuy={onQuickBuy} buying={buying === c.mint} />)
         )}
@@ -101,6 +148,37 @@ export default function LivePage() {
   const [toast, setToast] = useState<{ ok: boolean; text: string; sig?: string } | null>(null);
   const { execute, connected } = useSwap();
   const { setVisible } = useWalletModal();
+  const [filters, setFilters] = useState<PulseFilters>({});
+  const filtersRef = useRef<PulseFilters>({});
+  const [reloadTick, setReloadTick] = useState(0);
+  const [pendingCols, setPendingCols] = useState<Set<ColumnKey>>(new Set());
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FILTERS_KEY) ?? "{}") as PulseFilters;
+      const clean: PulseFilters = { newPairs: cleanFilter(saved.newPairs), aboutToGraduate: cleanFilter(saved.aboutToGraduate), graduated: cleanFilter(saved.graduated) };
+      filtersRef.current = clean;
+      queueMicrotask(() => {
+        setFilters(clean);
+        setReloadTick((x) => x + 1);
+      });
+    } catch {
+      // storage unavailable or corrupt: no saved filters
+    }
+  }, []);
+
+  function setColumnFilter(col: ColumnKey, f: ColumnFilter) {
+    const next = { ...filtersRef.current, [col]: f };
+    filtersRef.current = next;
+    setFilters(next);
+    setPendingCols((p) => new Set([...p, col]));
+    setReloadTick((x) => x + 1); // fetch right away instead of waiting for the next tick
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     try {
@@ -115,12 +193,17 @@ export default function LivePage() {
     let stop = false;
     async function load() {
       try {
-        const r = await fetch("/api/live/pulse");
+        const f = filtersRef.current;
+        const filtered = activeCount(f.newPairs) + activeCount(f.aboutToGraduate) + activeCount(f.graduated) > 0;
+        const r = filtered
+          ? await fetch("/api/live/pulse", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(f) })
+          : await fetch("/api/live/pulse");
         if (!r.ok) throw new Error();
         const d = (await r.json()) as Pulse;
         if (!stop) {
           setData(d);
           setError(false);
+          setPendingCols(new Set());
         }
       } catch {
         if (!stop) setError(true);
@@ -134,7 +217,7 @@ export default function LivePage() {
       clearInterval(t);
       clearInterval(clock);
     };
-  }, []);
+  }, [reloadTick]);
 
   function saveQuickBuy(v: string) {
     const clean = v.replace(",", ".");
@@ -219,12 +302,12 @@ export default function LivePage() {
       <div className="grid h-[calc(100vh-220px)] min-h-[520px] grid-cols-1 gap-3 lg:grid-cols-3">
         {cols.map((c) => (
           <div key={c.key} className={cn("min-h-0 min-w-0", mobileCol === c.key ? "flex" : "hidden", "flex-col lg:flex")}>
-            <Column title={c.title} hint={c.hint} coins={c.coins} now={now} quickBuy={quickBuy} onQuickBuy={onQuickBuy} buying={buying} search={search} />
+            <Column column={c.key} filter={filters[c.key] ?? {}} onFilter={(f) => setColumnFilter(c.key, f)} title={c.title} hint={c.hint} coins={c.coins} now={now} quickBuy={quickBuy} onQuickBuy={onQuickBuy} buying={buying} search={search} pending={pendingCols.has(c.key)} />
           </div>
         ))}
       </div>
       <p className="mt-3 text-[11px] text-faint">
-        Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryven checks and simulates every transaction before you sign. Memecoins are extremely risky
+        Up to 30 coins per column (the data source&apos;s limit); filters search the whole market. Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryven checks and simulates every transaction before you sign. Memecoins are extremely risky
         and many go to zero.
       </p>
     </div>
