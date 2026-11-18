@@ -27,8 +27,11 @@ export type Trade = typeof schema.agentTrades.$inferSelect;
 const sol = (lamports: bigint) => `${Number(lamports) / 1e9} SOL`;
 const short = (m: string) => `${m.slice(0, 4)}…${m.slice(-4)}`;
 
-function toTradingPolicy(a: Agent): TradingPolicy {
-  return { agentStatus: a.status, mode: a.tradingMode, maxSolPerTrade: a.tradeMaxSol, dailySol: a.tradeDailySol, mints: a.tradeMints };
+/** The agent's own coin (if it's on mainnet) is always on the allowlist. */
+async function toTradingPolicy(a: Agent): Promise<TradingPolicy> {
+  const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, a.tokenId) });
+  const mints = own?.network === "mainnet" && !a.tradeMints.includes(own.mint) ? [...a.tradeMints, own.mint] : a.tradeMints;
+  return { agentStatus: a.status, mode: a.tradingMode, maxSolPerTrade: a.tradeMaxSol, dailySol: a.tradeDailySol, mints };
 }
 
 async function spentToday(agentId: string) {
@@ -78,7 +81,7 @@ export async function proposeTrade(args: {
     spentToday(agent.id),
     autonomous ? mainnetConnection().getBalance(new PublicKey(wallet), "confirmed").then(BigInt).catch(() => null) : Promise.resolve(undefined),
   ]);
-  const decision = evaluateTrade(toTradingPolicy(agent), { action: args.action, mint: args.mint, amount: args.amount }, { globalPause, spentToday: today, walletLamports });
+  const decision = evaluateTrade(await toTradingPolicy(agent), { action: args.action, mint: args.mint, amount: args.amount }, { globalPause, spentToday: today, walletLamports });
   const status: Trade["status"] = decision.decision === "reject" ? "rejected" : decision.decision === "needs_approval" ? "awaiting_signature" : "executing";
 
   const [trade] = await db
@@ -176,7 +179,7 @@ async function loadCreatorTrade(tradeId: string, wallet: string) {
 export async function buildCreatorTrade(tradeId: string, wallet: string): Promise<string> {
   const { trade, agent } = await loadCreatorTrade(tradeId, wallet);
   const decision = evaluateTrade(
-    { ...toTradingPolicy(agent), mode: agent.tradingMode === "off" ? "off" : "proposal" },
+    { ...(await toTradingPolicy(agent)), mode: agent.tradingMode === "off" ? "off" : "proposal" },
     trade,
     { globalPause: await isPlatformPaused(), spentToday: await spentToday(agent.id) },
   );

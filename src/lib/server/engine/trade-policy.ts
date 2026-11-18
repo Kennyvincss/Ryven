@@ -34,7 +34,7 @@ export const FEE_RESERVE_LAMPORTS = 10_000_000n;
 export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeContext): PolicyRecord {
   const checks: PolicyCheck[] = [];
   const add = (c: PolicyCheck) => checks.push(c);
-  add({ id: "trading_enabled", label: "Trading enabled", passed: p.mode !== "off", detail: p.mode === "off" ? "The creator has not enabled trading" : `Trading mode: ${p.mode}`, effect: "reject" });
+  add({ id: "trading_enabled", label: "Trading enabled", passed: p.mode !== "off", detail: p.mode === "off" ? "Trading is off. The creator can turn it on in the agent console → Permissions → pump.fun trading" : `Trading mode: ${p.mode}`, effect: "reject" });
   add({ id: "agent_active", label: "Agent active", passed: p.agentStatus === "active", detail: p.agentStatus === "active" ? "Agent is active" : "Agent is paused", effect: "reject" });
   add({ id: "global_pause", label: "Platform enabled", passed: !ctx.globalPause, detail: ctx.globalPause ? "Platform payments/trading are paused by an administrator" : "Platform kill switch is off", effect: "reject" });
   const allowed = p.mints.includes(t.mint);
@@ -67,6 +67,8 @@ export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeCont
   }
 
   const failed = checks.filter((c) => !c.passed);
+  // When trading is off, that's the only thing worth saying.
+  if (p.mode === "off") return { decision: "reject", summary: failed[0].detail, checks };
   if (failed.length) return { decision: "reject", summary: failed.map((c) => c.detail).join("; "), checks };
   return { decision: p.mode === "proposal" ? "needs_approval" : "approve", summary: p.mode === "proposal" ? "Passed policy; waiting for the creator to sign" : "All trading checks passed", checks };
 }

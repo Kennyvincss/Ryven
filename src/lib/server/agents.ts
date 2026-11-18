@@ -71,7 +71,7 @@ export const TradingInput = z
   })
   .refine((p) => p.maxSolPerTrade <= p.dailySol, "Max per trade cannot exceed the daily SOL limit")
   .refine((p) => p.dailySol <= toBaseUnits("25", 9), "Daily SOL limit is capped at 25 SOL")
-  .refine((p) => p.mode === "off" || (p.maxSolPerTrade > 0n && p.mints.length > 0), "Set a max SOL per trade and at least one allowed coin");
+  .refine((p) => p.mode === "off" || p.maxSolPerTrade > 0n, "Set a max SOL per trade");
 
 export const ProfileInput = z.object({
   name: z.string().trim().min(2).max(48),

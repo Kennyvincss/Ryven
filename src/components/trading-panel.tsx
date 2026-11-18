@@ -317,7 +317,7 @@ export function TradingSettings({
               <Input inputMode="decimal" value={f.dailySol} onChange={(e) => setF({ ...f, dailySol: e.target.value })} />
             </Field>
           </div>
-          <Field label="Allowed coins" hint="pump.fun mint addresses, one per line">
+          <Field label="Other allowed coins" hint="your own coin is always allowed · one address per line">
             <Textarea value={f.mints} onChange={(e) => setF({ ...f, mints: e.target.value })} placeholder="e.g. your coin launched on pump.fun" />
           </Field>
         </>

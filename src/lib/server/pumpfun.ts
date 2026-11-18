@@ -133,9 +133,18 @@ export function validateTradeTransaction(tx: VersionedTransaction, wallet: strin
   if (unknown.length) throw new PumpFunError(`Trade calls an unexpected program: ${unknown.join(", ")}`);
 }
 
+/** "pump" while the coin is on its bonding curve, "pump-amm" (PumpSwap) once it graduated. */
+export async function poolFor(mint: string): Promise<"pump" | "pump-amm"> {
+  const { readPumpCurve } = await import("./market");
+  const curve = await readPumpCurve(mint).catch(() => null);
+  if (!curve) throw new PumpFunError("Only pump.fun coins can be traded (no pump.fun bonding curve found for this mint).");
+  return curve.complete ? "pump-amm" : "pump";
+}
+
 export async function buildTradeTransaction(t: TradeRequest): Promise<VersionedTransaction> {
   new PublicKey(t.wallet);
   new PublicKey(t.mint);
+  const pool = await poolFor(t.mint);
   const res = await outboundFetch(PUMPPORTAL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -147,7 +156,7 @@ export async function buildTradeTransaction(t: TradeRequest): Promise<VersionedT
       denominatedInSol: t.action === "buy" ? "true" : "false",
       slippage: 10,
       priorityFee: 0.00001,
-      pool: "pump",
+      pool,
     }),
   });
   if (res.status !== 200) {
