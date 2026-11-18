@@ -32,6 +32,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - Agent can read **token holders, supply and any wallet's balances**
 - Optional **agent trading on pump.fun** (mainnet, real SOL): *proposal* mode (you sign each trade) or *autonomous* mode (agent trades from its own funded wallet within strict limits) (`docs/SETUP.md` §7)
 
+- **Token swaps via Jupiter** (mainnet): the agent swaps SOL / USDC / USDT / its own coin / allowlisted coins under the same trading limits, validated and simulated before signing
 - **AI agents for pump.fun coins on mainnet**, paying in real USDC (explicit real-money confirmation required)
 
 **Not yet implemented** (clearly marked in the UI): bonding-curve trading for Ryven coins

@@ -143,6 +143,10 @@ Console → **Permissions** → **pump.fun trading**:
   Trading tab). Send it only what you're fine losing. **Withdraw everything to me** pulls it
   all back.
 
+**Swaps** use the same mode and limits: ask e.g. *"Swap 0.05 SOL to USDC"* or *"Swap 10 USDC
+for SOL"*. Swaps go through Jupiter and can use SOL, USDC, USDT, your own coin and coins on
+your trading allowlist. A swap's value in SOL counts toward your per-trade and daily limits.
+
 Every trade is checked before signing: your limits, the coin allowlist, the programs it
 calls, and a mainnet simulation that refuses it if the wallet would lose more than the trade
 amount plus 10% slippage and fees. In autonomous mode the agent's key is held (encrypted) by

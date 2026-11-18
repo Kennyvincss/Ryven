@@ -29,7 +29,7 @@ export const networkEnum = pgEnum("network", ["devnet", "mainnet"]);
 /** What a treasury / payment is denominated in: USDC, or the agent's own launched token. */
 export const assetEnum = pgEnum("asset", ["usdc", "token", "sol"]);
 export const tradingModeEnum = pgEnum("trading_mode", ["off", "proposal", "autonomous"]);
-export const tradeSideEnum2 = pgEnum("trade_action", ["buy", "sell"]);
+export const tradeSideEnum2 = pgEnum("trade_action", ["buy", "sell", "swap"]);
 export const tradeStatusEnum = pgEnum("trade_status", [
   "rejected", // failed a policy check
   "awaiting_signature", // proposal mode: waiting for the creator to sign in their wallet
@@ -360,8 +360,15 @@ export const agentTrades = pgTable(
     mode: tradingModeEnum("mode").notNull(),
     action: tradeSideEnum2("action").notNull(),
     mint: text("mint").notNull(),
-    /** buy: lamports of SOL to spend. sell: percent of holdings (1-100). */
+    /** buy: lamports of SOL to spend. sell: percent of holdings (1-100). swap: SOL-equivalent value in lamports (counts toward limits). */
     amount: bigint("amount", { mode: "bigint" }).notNull(),
+    /** swap only: what is sold (mint + raw amount) and what was received. `mint` holds the output mint. */
+    inputMint: text("input_mint"),
+    inputAmount: bigint("input_amount", { mode: "bigint" }),
+    inputDecimals: integer("input_decimals"),
+    outputDecimals: integer("output_decimals"),
+    quotedOut: bigint("quoted_out", { mode: "bigint" }),
+    outputAmount: bigint("output_amount", { mode: "bigint" }),
     reason: text("reason").notNull(),
     /** Wallet that executes the trade: creator (proposal) or the agent's trading wallet (autonomous). */
     wallet: text("wallet").notNull(),

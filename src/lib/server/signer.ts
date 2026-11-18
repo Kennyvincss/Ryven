@@ -149,6 +149,19 @@ export async function signAgentTrade(agentId: string, agentSignerPubkey: string,
   }
 }
 
+/** Signs a Jupiter swap for the agent's trading wallet, after re-validating its shape. */
+export async function signAgentSwap(agentId: string, agentSignerPubkey: string, tx: import("@solana/web3.js").VersionedTransaction) {
+  const { validateSwapTransaction } = await import("./jupiter");
+  validateSwapTransaction(tx, agentSignerPubkey);
+  const kp = await loadAgentKeypair(agentId, agentSignerPubkey);
+  try {
+    tx.sign([kp]);
+    return tx;
+  } finally {
+    kp.secretKey.fill(0);
+  }
+}
+
 /**
  * Withdraws everything from the agent's trading wallet to the CREATOR (fixed destination):
  * every token balance, then all SOL minus the network fee.

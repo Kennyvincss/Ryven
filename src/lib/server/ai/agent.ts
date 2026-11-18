@@ -12,6 +12,7 @@ import { z } from "zod";
 import { db, schema } from "../db";
 import { serverEnv } from "../env";
 import {
+  EngineError,
   executePayment,
   getSpendingSnapshot,
   loadAgent,
@@ -22,7 +23,7 @@ import {
 import { connectionFor, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
 import { getMarketData } from "../market";
-import { listTrades, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
+import { listTrades, proposeSwap, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
 import { logActivity, type ActivityStatus } from "../engine/activity";
@@ -176,6 +177,23 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "swap_tokens",
+    description:
+      "Swap one token for another on Solana MAINNET through Jupiter (best route across DEXes, real funds). Tokens: \"SOL\", \"USDC\", \"USDT\", \"own\" (this agent's coin) or a mint address on the creator's trading allowlist. amount is in INPUT token units, e.g. \"0.1\" SOL or \"25\" USDC. The Ryven trading engine (not you) values the swap in SOL, checks the creator's per-trade and daily limits, gets a quote, validates the transaction and simulates it, refusing anything that would spend more than quoted. Proposal mode: the creator signs it in the Trading tab. Autonomous mode: it runs from your trading wallet. Only swap when the creator asked for it or their standing instructions say so.",
+    input_schema: {
+      type: "object",
+      properties: {
+        input: { type: "string", description: "Token to sell: SOL, USDC, USDT, own, or a mint address" },
+        output: { type: "string", description: "Token to receive: SOL, USDC, USDT, own, or a mint address" },
+        amount: { type: "string", description: "Amount of the INPUT token, e.g. \"0.1\"" },
+        reason: { type: "string" },
+      },
+      required: ["input", "output", "amount", "reason"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
     name: "get_market_data",
     description:
       "Live market data for a token on Solana mainnet: price (SOL and USD), market cap, pump.fun bonding-curve progress / graduation, liquidity, 24h volume and 24h price change. For coins still on pump.fun the price is computed from the on-chain bonding curve and SOL/USD from Pyth's on-chain feed; traded coins use DexScreener. Use mint \"own\" for this agent's own token, or any token mint address.",
@@ -223,6 +241,12 @@ const MarketInput = z.object({ mint: z.string().min(1).max(64) });
 const TradeInput = z.object({
   action: z.enum(["buy", "sell"]),
   mint: z.string().min(32).max(44),
+  amount: z.string().regex(/^\d+(\.\d{1,9})?$/),
+  reason: z.string().min(3).max(300),
+});
+const SwapInput = z.object({
+  input: z.string().min(2).max(44),
+  output: z.string().min(2).max(44),
   amount: z.string().regex(/^\d+(\.\d{1,9})?$/),
   reason: z.string().min(3).max(300),
 });
@@ -511,6 +535,34 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       });
       return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
     }
+    case "swap_tokens": {
+      const parsed = SwapInput.safeParse(input);
+      if (!parsed.success) return { content: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
+      const { amount, reason } = parsed.data;
+      const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      const resolveOwn = (v: string) => (v.trim().toLowerCase() === "own" ? (own?.network === "mainnet" ? own.mint : null) : v);
+      const from = resolveOwn(parsed.data.input);
+      const to = resolveOwn(parsed.data.output);
+      if (!from || !to) return { content: "This agent's own coin is not on mainnet, so it can't be swapped.", isError: true };
+      ctx.emit({ type: "status", status: "checking_permissions", message: `Quoting swap of ${amount} ${parsed.data.input} → ${parsed.data.output} and checking trading limits` });
+      try {
+        const { trade, duplicate } = await proposeSwap({ agentId: agent.id, instructionId: ctx.instructionId, input: from, output: to, amount, reason });
+        ctx.emit({
+          type: "status",
+          status: trade.status === "confirmed" ? "completed" : trade.status === "awaiting_signature" ? "awaiting_approval" : trade.status === "rejected" || trade.status === "failed" ? "failed" : "executing",
+          message:
+            trade.status === "confirmed"
+              ? "Swap confirmed on mainnet"
+              : trade.status === "awaiting_signature"
+                ? "Swap proposal waiting for the creator to sign"
+                : `Swap ${trade.status}: ${trade.error ?? trade.policy.summary}`,
+        });
+        return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
+      } catch (e) {
+        if (e instanceof EngineError) return { content: e.message, isError: true };
+        throw e;
+      }
+    }
     case "get_market_data": {
       const { mint: requested } = MarketInput.parse(input);
       const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
@@ -564,6 +616,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
+- Swaps: you CAN swap tokens on Solana mainnet through Jupiter with swap_tokens (SOL, USDC, USDT, your own coin, or allowlisted coins), e.g. "swap 0.1 SOL to USDC". When the creator asks for a swap, call swap_tokens; the engine checks limits and tells you if trading is off or a token isn't allowed. Same proposal/autonomous rules as trading.
 - Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.
 - Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
 }

@@ -10,13 +10,19 @@ export type TradingPolicy = {
   maxSolPerTrade: bigint; // lamports
   dailySol: bigint; // lamports
   mints: string[];
+  /** Tokens a swap may sell or buy (allowlist + own coin + SOL/USDC/USDT). */
+  swapMints?: string[];
 };
 
 export type TradeProposal = {
-  action: "buy" | "sell";
+  action: "buy" | "sell" | "swap";
+  /** buy/sell: the coin. swap: the OUTPUT token. */
   mint: string;
-  /** buy: lamports. sell: percent of holdings (1-100). */
+  /** buy: lamports. sell: percent of holdings (1-100). swap: SOL-equivalent value in lamports. */
   amount: bigint;
+  /** swap only */
+  inputMint?: string | null;
+  inputIsSol?: boolean;
 };
 
 export type TradeContext = {
@@ -37,10 +43,23 @@ export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeCont
   add({ id: "trading_enabled", label: "Trading enabled", passed: p.mode !== "off", detail: p.mode === "off" ? "Trading is off. The creator can turn it on in the agent console → Permissions → pump.fun trading" : `Trading mode: ${p.mode}`, effect: "reject" });
   add({ id: "agent_active", label: "Agent active", passed: p.agentStatus === "active", detail: p.agentStatus === "active" ? "Agent is active" : "Agent is paused", effect: "reject" });
   add({ id: "global_pause", label: "Platform enabled", passed: !ctx.globalPause, detail: ctx.globalPause ? "Platform payments/trading are paused by an administrator" : "Platform kill switch is off", effect: "reject" });
-  const allowed = p.mints.includes(t.mint);
-  add({ id: "mint_allowed", label: "Coin on the allowlist", passed: allowed, detail: allowed ? "Coin is approved for trading" : "This coin is not on the creator's trading allowlist", effect: "reject" });
+  if (t.action === "swap") {
+    const ok = p.swapMints ?? p.mints;
+    const inOk = !!t.inputMint && ok.includes(t.inputMint);
+    const outOk = ok.includes(t.mint);
+    add({
+      id: "mint_allowed",
+      label: "Tokens allowed",
+      passed: inOk && outOk,
+      detail: inOk && outOk ? "Both tokens are allowed" : "Swaps are limited to SOL, USDC, USDT, your own coin and coins on your trading allowlist",
+      effect: "reject",
+    });
+  } else {
+    const allowed = p.mints.includes(t.mint);
+    add({ id: "mint_allowed", label: "Coin on the allowlist", passed: allowed, detail: allowed ? "Coin is approved for trading" : "This coin is not on the creator's trading allowlist", effect: "reject" });
+  }
 
-  if (t.action === "buy") {
+  if (t.action === "buy" || t.action === "swap") {
     add({ id: "amount", label: "Valid amount", passed: t.amount > 0n, detail: t.amount > 0n ? sol(t.amount) : "Amount must be greater than zero", effect: "reject" });
     add({ id: "max_per_trade", label: "Within max per trade", passed: t.amount <= p.maxSolPerTrade, detail: `${sol(t.amount)} vs max ${sol(p.maxSolPerTrade)}`, effect: "reject" });
     add({
@@ -51,7 +70,7 @@ export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeCont
       effect: "reject",
     });
     if (p.mode === "autonomous") {
-      const need = t.amount + FEE_RESERVE_LAMPORTS;
+      const need = (t.action === "buy" || t.inputIsSol ? t.amount : 0n) + FEE_RESERVE_LAMPORTS;
       const have = ctx.walletLamports ?? null;
       add({
         id: "wallet_balance",

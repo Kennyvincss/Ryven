@@ -36,6 +36,13 @@
       "when": 1794981596076,
       "tag": "0004_sol_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794982087800,
+      "tag": "0005_swaps",
+      "breakpoints": true
     }
   ]
 }

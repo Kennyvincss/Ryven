@@ -35,4 +35,36 @@ describe("trade policy", () => {
     expect(evaluateTrade(base, { action: "sell", mint, amount: 0n }, ctx).decision).toBe("reject");
     expect(evaluateTrade(base, { action: "sell", mint, amount: 101n }, ctx).decision).toBe("reject");
   });
+
+  describe("swaps", () => {
+    const SOLM = "So11111111111111111111111111111111111111112";
+    const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const swapBase: TradingPolicy = { ...base, swapMints: [mint, SOLM, USDC] };
+    const swap = (inputMint: string, out: string, value: number) => ({ action: "swap" as const, mint: out, amount: SOL(value), inputMint, inputIsSol: inputMint === SOLM });
+
+    it("approves a SOL → USDC swap within limits", () => {
+      expect(evaluateTrade(swapBase, swap(SOLM, USDC, 0.05), ctx).decision).toBe("approve");
+    });
+    it("requires the creator's signature in proposal mode", () => {
+      expect(evaluateTrade({ ...swapBase, mode: "proposal" }, swap(USDC, SOLM, 0.05), ctx).decision).toBe("needs_approval");
+    });
+    it("rejects tokens outside SOL/USDC/USDT, the own coin and the allowlist", () => {
+      const random = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+      expect(evaluateTrade(swapBase, swap(SOLM, random, 0.01), ctx).decision).toBe("reject");
+      expect(evaluateTrade(swapBase, swap(random, USDC, 0.01), ctx).decision).toBe("reject");
+      expect(evaluateTrade(swapBase, { action: "swap", mint: USDC, amount: SOL(0.01), inputMint: null }, ctx).decision).toBe("reject");
+    });
+    it("applies max-per-trade and the daily limit to the swap's SOL value", () => {
+      expect(evaluateTrade(swapBase, swap(USDC, SOLM, 0.2), ctx).decision).toBe("reject");
+      expect(evaluateTrade(swapBase, swap(USDC, SOLM, 0.1), { ...ctx, spentToday: SOL(0.45) }).decision).toBe("reject");
+    });
+    it("only needs SOL in the wallet for the amount when SOL is the input", () => {
+      const poor = { ...ctx, walletLamports: SOL(0.02) };
+      expect(evaluateTrade(swapBase, swap(SOLM, USDC, 0.05), poor).decision).toBe("reject");
+      expect(evaluateTrade(swapBase, swap(USDC, SOLM, 0.05), poor).decision).toBe("approve");
+    });
+    it("is rejected when trading is off", () => {
+      expect(evaluateTrade({ ...swapBase, mode: "off" }, swap(SOLM, USDC, 0.01), ctx).decision).toBe("reject");
+    });
+  });
 });

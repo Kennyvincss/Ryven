@@ -12,9 +12,10 @@ import { AddressLink, Alert, Badge, Button, Empty, Field, Input, Spinner, Stat, 
 type TradeView = {
   id: string;
   mode: string;
-  action: "buy" | "sell";
+  action: "buy" | "sell" | "swap";
   mint: string;
   amount: string;
+  swap: { inputSymbol: string; outputSymbol: string; inputAmount: string | null; quotedOutput: string | null; received: string | null; valueSol: number } | null;
   reason: string;
   status: string;
   signature: string | null;
@@ -23,6 +24,36 @@ type TradeView = {
   policy: { summary: string };
   createdAt: string;
 };
+const actionTone = { buy: "accent", sell: "danger", swap: "info" } as const;
+
+/** "buy 0.05 SOL of Abc…xyz" / "swap 10 USDC → SOL (quote ≈0.06 SOL)". */
+function TradeLabel({ t, link }: { t: TradeView; link?: boolean }) {
+  const badge = <Badge tone={actionTone[t.action]}>{t.action}</Badge>;
+  if (t.action === "swap" && t.swap) {
+    return (
+      <>
+        {badge}{" "}
+        <span className="font-mono">
+          {t.swap.inputAmount} {t.swap.inputSymbol} → {t.swap.outputSymbol}
+        </span>
+        {t.swap.quotedOutput && <span className="text-muted"> · quote ≈{t.swap.quotedOutput} {t.swap.outputSymbol}</span>}
+      </>
+    );
+  }
+  return (
+    <>
+      {badge} <span className="font-mono">{t.amount}</span> of{" "}
+      {link ? (
+        <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="font-mono underline">
+          {shortAddress(t.mint, 5)}
+        </a>
+      ) : (
+        <span className="font-mono text-muted">{shortAddress(t.mint, 5)}</span>
+      )}
+    </>
+  );
+}
+
 type TradingResp = {
   settings: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: number; dailySol: number; mints: string[] };
   spentTodaySol: number;
@@ -137,11 +168,7 @@ export function TradingPanel({ agentId }: { agentId: string }) {
               <li key={t.id} className="rounded-xl border border-warn/30 bg-warn/5 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm">
-                    <Badge tone={t.action === "buy" ? "accent" : "danger"}>{t.action}</Badge>{" "}
-                    <span className="font-mono">{t.amount}</span> of{" "}
-                    <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="font-mono underline">
-                      {shortAddress(t.mint, 5)}
-                    </a>
+                    <TradeLabel t={t} link />
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" loading={busy === t.id} onClick={() => signAndSend(t)}>Sign &amp; send</Button>
@@ -167,14 +194,14 @@ export function TradingPanel({ agentId }: { agentId: string }) {
                 <li key={t.id} className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <Badge tone={t.action === "buy" ? "accent" : "danger"}>{t.action}</Badge> <span className="font-mono">{t.amount}</span> ·{" "}
-                      <span className="font-mono text-muted">{shortAddress(t.mint, 5)}</span> <Badge>{t.mode}</Badge>
+                      <TradeLabel t={t} /> <Badge>{t.mode}</Badge>
                     </div>
                     <Badge tone={statusTone[t.status] ?? "neutral"} dot>{t.status.replace("_", " ")}</Badge>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
                     <span>“{t.reason}”</span>
                     {t.solChange !== null && <span>SOL change {t.solChange}</span>}
+                    {t.swap?.received && <span>Received {t.swap.received} {t.swap.outputSymbol}</span>}
                     {t.signature && t.status === "confirmed" && (
                       <a href={explorerTx(t.signature, "mainnet")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-info hover:underline">
                         Explorer <ExternalLink className="size-3" />

@@ -241,6 +241,20 @@ record the real SOL change. The creator can drain the trading wallet back to the
 any time (fixed-destination withdrawal). Autonomous mode means a server-held hot key controls
 real SOL; the UI makes the creator acknowledge this.
 
+### Token swaps (Jupiter, mainnet)
+
+`swap_tokens` swaps any pair among SOL, USDC, USDT, the agent's own coin and the creator's
+trading allowlist through the Jupiter aggregator (`src/lib/server/jupiter.ts`), in the same
+proposal/autonomous modes as trading. Pipeline: resolve both mints → Jupiter quote → value the
+swap in SOL (exact if SOL is in or out, else Jupiter's USD value ÷ Pyth SOL/USD) → the same
+deterministic trading policy (allowed tokens, SOL per trade, daily SOL shared with buys) →
+Jupiter builds a v0 transaction → **validation**: one signer (the swapping wallet), top-level
+programs limited to ComputeBudget/ATA/System/Token/Jupiter router, and System/Token/ATA
+instructions may only wrap/unwrap the wallet's *own* SOL (no top-level transfer to anyone) →
+**mainnet simulation** refusing it if more input token than quoted, or more SOL than (input if
+SOL) + 0.01 SOL, would leave the wallet → sign → send → confirm → record the amount actually
+received. Swaps are re-quoted at signing time with the originally proposed input amount.
+
 ## 7. Payment execution architecture
 
 ```
