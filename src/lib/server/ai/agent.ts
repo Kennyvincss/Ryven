@@ -21,6 +21,7 @@ import {
 } from "../engine/payments";
 import { connectionFor, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
+import { getMarketData } from "../market";
 import { listTrades, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
@@ -175,6 +176,18 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "get_market_data",
+    description:
+      "Live market data for a token on Solana mainnet: price (SOL and USD), market cap, pump.fun bonding-curve progress / graduation, liquidity, 24h volume and 24h price change. For coins still on pump.fun the price is computed from the on-chain bonding curve and SOL/USD from Pyth's on-chain feed; traded coins use DexScreener. Use mint \"own\" for this agent's own token, or any token mint address.",
+    input_schema: {
+      type: "object",
+      properties: { mint: { type: "string", description: "\"own\" or a token mint address" } },
+      required: ["mint"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
     name: "pause_agent",
     description:
       "Immediately pause this agent so no further payments execute. Use when the creator asks you to stop all payments, or if something looks wrong. Only the creator can resume.",
@@ -206,6 +219,7 @@ const ProposeInput = z.object({
 const PeriodInput = z.object({ period: z.enum(["today", "7d", "all"]) });
 const PauseInput = z.object({ reason: z.string().min(1).max(300) });
 const WalletInput = z.object({ wallet: z.string().min(1).max(64) });
+const MarketInput = z.object({ mint: z.string().min(1).max(64) });
 const TradeInput = z.object({
   action: z.enum(["buy", "sell"]),
   mint: z.string().min(32).max(44),
@@ -473,6 +487,23 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       });
       return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
     }
+    case "get_market_data": {
+      const { mint: requested } = MarketInput.parse(input);
+      const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      const mint = requested === "own" ? own?.mint : requested.trim();
+      if (!mint) return { content: "Token not found", isError: true };
+      try {
+        new PublicKey(mint);
+      } catch {
+        return { content: `"${requested}" is not a valid token mint address`, isError: true };
+      }
+      if (requested === "own" && own?.network === "devnet") {
+        return { content: JSON.stringify({ mint, note: "This token is on devnet (test mode); devnet tokens have no market price." }) };
+      }
+      ctx.emit({ type: "status", status: "analysing", message: `Reading live market data for ${mint.slice(0, 4)}…${mint.slice(-4)}` });
+      const m = await getMarketData(mint);
+      return { content: JSON.stringify({ ...m, is_own_token: own?.mint === mint }) };
+    }
     case "pause_agent": {
       const { reason } = PauseInput.parse(input);
       await db
@@ -506,6 +537,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - You cannot change your own limits, approve payments, or resume after a pause. If asked, explain that only the creator can do that from the Ryven console.
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
+- For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you can buy or sell pump.fun coins on Solana MAINNET with propose_trade, only if the creator enabled trading and only coins on their allowlist (check get_trading_status first). Proposal mode: the creator must sign each trade. Autonomous mode: you trade from your own small trading wallet within strict limits. Never trade on your own initiative unless the creator's instructions say so. A fixed-supply Ryven token has no market unless someone creates a DEX pool for it.
 - Rewards can be paid in USDC or in your own token (asset "token") if the creator enabled token rewards; get_treasury_status shows both.

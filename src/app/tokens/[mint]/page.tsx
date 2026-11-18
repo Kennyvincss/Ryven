@@ -30,6 +30,19 @@ type Resp = {
   };
   onchain: { supply: string; mintAuthority: string | null; freezeAuthority: string | null } | null;
   holders: number | null;
+  market: {
+    source: string;
+    priceSol: number | null;
+    priceUsd: number | null;
+    marketCapSol: number | null;
+    marketCapUsd: number | null;
+    bondingCurveProgress: number | null;
+    graduated: boolean | null;
+    liquidityUsd: number | null;
+    volume24hUsd: number | null;
+    priceChange24hPct: number | null;
+    url: string | null;
+  } | null;
   trades: { id: string; side: string; trader: string; solAmount: string; tokenAmount: string; signature: string; blockTime: string }[];
   agent: {
     id: string;
@@ -59,6 +72,7 @@ export default function TokenPage() {
   const { token: t, agent: a } = data;
   const isCreator = publicKey?.toBase58() === t.creatorWallet;
   const confirmed = (pays.data?.payments ?? []).filter((p) => p.status === "confirmed").slice(0, 8);
+  const mcap = data.market?.marketCapUsd ?? null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -92,10 +106,39 @@ export default function TokenPage() {
 
       <Card className="mt-6 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
         <Stat label="Total supply" value={formatCompact(Number(data.onchain?.supply ?? t.totalSupply))} hint="read from mint" />
-        <Stat label="Holders" value={data.holders ?? "—"} hint={t.network === "mainnet" ? "see pump.fun" : "token accounts with balance"} />
+        <Stat label="Holders" value={data.holders ?? "—"} hint="wallets holding it" />
         <Stat label="Mint authority" value={data.onchain ? (data.onchain.mintAuthority ? "Active" : "Revoked") : "—"} hint={data.onchain?.mintAuthority ? "can mint more" : "supply is fixed forever"} />
-        <Stat label="Market cap" value="—" hint={t.launchMode === "fixed_supply" ? "no curve market" : t.launchMode === "pumpfun" ? "see pump.fun" : "from curve price"} />
+        <Stat
+          label="Market cap"
+          value={mcap !== null ? `$${formatCompact(mcap)}` : "—"}
+          hint={
+            data.market?.source === "none" || !data.market
+              ? "no market yet"
+              : data.market.source.startsWith("pump.fun")
+                ? "from on-chain bonding curve"
+                : "from DEX data"
+          }
+        />
       </Card>
+      {data.market && data.market.source !== "none" && (
+        <Card className="mt-3 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
+          <Stat
+            label="Price"
+            value={data.market.priceUsd !== null ? `$${data.market.priceUsd < 0.01 ? data.market.priceUsd.toPrecision(3) : data.market.priceUsd.toFixed(4)}` : "—"}
+            hint={data.market.priceSol !== null ? `${data.market.priceSol.toPrecision(3)} SOL` : undefined}
+          />
+          {data.market.bondingCurveProgress !== null ? (
+            <Stat label="Bonding curve" value={`${data.market.bondingCurveProgress}%`} hint={data.market.graduated ? "graduated" : "to graduation"} />
+          ) : (
+            <Stat label="Liquidity" value={data.market.liquidityUsd !== null ? `$${formatCompact(data.market.liquidityUsd)}` : "—"} />
+          )}
+          <Stat label="24h volume" value={data.market.volume24hUsd !== null ? `$${formatCompact(data.market.volume24hUsd)}` : "—"} />
+          <Stat
+            label="24h change"
+            value={data.market.priceChange24hPct !== null ? `${data.market.priceChange24hPct > 0 ? "+" : ""}${data.market.priceChange24hPct}%` : "—"}
+          />
+        </Card>
+      )}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="space-y-5">

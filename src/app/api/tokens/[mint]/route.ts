@@ -6,6 +6,7 @@ import { handler, json } from "@/lib/server/http";
 import { agentStats, agentView, tokenView } from "@/lib/server/queries";
 import { connection, mainnetConnection } from "@/lib/server/solana";
 import { holderCount } from "@/lib/server/chain-reads";
+import { getMarketData } from "@/lib/server/market";
 import { EngineError } from "@/lib/server/engine/payments";
 import { fromBaseUnits } from "@/lib/shared/amounts";
 
@@ -23,11 +24,12 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const stats = agent ? (await agentStats([agent.id])).get(agent.id) : undefined;
   const isMainnet = token.network === "mainnet";
   const conn = isMainnet ? mainnetConnection() : connection();
-  const [onchain, holders, trades] = await Promise.all([
+  const [onchain, holders, trades, market] = await Promise.all([
     getMint(conn, new PublicKey(mint), "confirmed", new PublicKey(token.tokenProgram)).catch(() => null),
     // Uses an indexed RPC when available, else rebuilds holders from recent transactions.
     holderCount(mint, new PublicKey(token.tokenProgram), conn),
     db.select().from(schema.tokenTrades).where(eq(schema.tokenTrades.tokenId, token.id)).orderBy(desc(schema.tokenTrades.blockTime)).limit(100),
+    isMainnet ? getMarketData(mint).catch(() => null) : Promise.resolve(null),
   ]);
   return json({
     token: tokenView(token),
@@ -39,6 +41,7 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
         }
       : null,
     holders,
+    market,
     trades: trades.map((t) => ({ ...t, blockTime: t.blockTime.toISOString() })),
     agent: agent ? agentView(agent, treasury, stats) : null,
   });
