@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   customType,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -168,6 +169,10 @@ export const agents = pgTable(
     tradeMaxSol: bigint("trade_max_sol", { mode: "bigint" }).notNull().default(sql`0`),
     tradeDailySol: bigint("trade_daily_sol", { mode: "bigint" }).notNull().default(sql`0`),
     tradeMints: text("trade_mints").array().notNull().default(sql`ARRAY[]::text[]`),
+    // Daily wallet brief (portfolio analysis + ideas), generated on a schedule.
+    briefEnabled: boolean("brief_enabled").notNull().default(false),
+    briefHourUtc: integer("brief_hour_utc").notNull().default(8),
+    briefLastAt: timestamp("brief_last_at", { withTimezone: true }),
     // Public key of the agent's delegate signer (private key lives in agent_signers).
     signerPubkey: text("signer_pubkey").notNull().unique(),
     createdAt: createdAt(),
@@ -323,6 +328,22 @@ export const agentActivities = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("activities_agent_created_idx").on(t.agentId, t.createdAt)],
+);
+
+export const walletBriefs = pgTable(
+  "wallet_briefs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    source: text("source").notNull(), // "scheduled" | "manual"
+    content: text("content").notNull(),
+    totalUsd: doublePrecision("total_usd"),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("briefs_agent_created_idx").on(t.agentId, t.createdAt)],
 );
 
 export const agentMessages = pgTable(

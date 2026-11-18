@@ -31,6 +31,10 @@ export const serverEnv = {
   get anthropicApiKey() {
     return process.env.ANTHROPIC_API_KEY || null;
   },
+  /** Bearer token for /api/cron/briefs (hosted cron). Unset = endpoint disabled. */
+  get cronSecret() {
+    return process.env.CRON_SECRET || null;
+  },
   get anthropicModel() {
     return process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
   },

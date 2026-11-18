@@ -255,6 +255,25 @@ instructions may only wrap/unwrap the wallet's *own* SOL (no top-level transfer 
 SOL) + 0.01 SOL, would leave the wallet → sign → send → confirm → record the amount actually
 received. Swaps are re-quoted at signing time with the originally proposed input amount.
 
+### Wallet analysis and daily brief (read-only)
+
+`analyze_portfolio` (`src/lib/server/portfolio.ts`) reads a mainnet wallet's balances
+(merged per mint), prices every holding in one batched Jupiter token-API call (name, USD
+price, liquidity, market cap, 24h change, mint/freeze authority, top-holder share), falls back
+to the on-chain pump.fun curve / DexScreener for a few unpriced coins, and optionally parses
+the last 8 transactions (swap / received / sent). Deterministic rules (`portfolio-rules.ts`,
+unit-tested) compute allocation and raise flags: concentration, low SOL for fees, no
+stablecoin buffer, low liquidity, ±24h moves, live authorities, holder concentration, dust,
+unknown airdrops. Stablecoins are identified by mint (or Jupiter-verified), never by symbol.
+
+The **daily brief** (`ai/brief.ts`) runs that analysis on the creator's wallet (plus the
+trading wallet in autonomous mode), compares it with the previous brief and has Claude write
+a short snapshot, risks and 2-4 ideas, stored in `wallet_briefs`. It never trades or pays.
+Scheduling: an in-process timer (every 10 min, `instrumentation-node.ts`) or
+`GET /api/cron/briefs` with `CRON_SECRET` for hosts without a long-running process. Each
+agent is claimed atomically (`brief_last_at` updated before generating), so overlapping runs
+or several instances never produce duplicates.
+
 ## 7. Payment execution architecture
 
 ```

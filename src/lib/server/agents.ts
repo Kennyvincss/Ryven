@@ -76,6 +76,8 @@ const pubkey = z.string().refine((v) => {
 }, "Invalid token address");
 
 /** pump.fun trading limits (mainnet). Hard ceilings protect against fat-finger settings. */
+export const BriefInput = z.object({ enabled: z.boolean(), hourUtc: z.number().int().min(0).max(23) });
+
 export const TradingInput = z
   .object({
     mode: z.enum(["off", "proposal", "autonomous"]),

@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getSession } from "@/lib/server/auth";
-import { PolicyInput, ProfileInput, SolPolicyInput, TokenPolicyInput, TradingInput, requireCreator } from "@/lib/server/agents";
+import { BriefInput, PolicyInput, ProfileInput, SolPolicyInput, TokenPolicyInput, TradingInput, requireCreator } from "@/lib/server/agents";
 import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
@@ -55,6 +55,7 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
   const tokenPolicy = "tokenPolicy" in body ? TokenPolicyInput.parse(body.tokenPolicy) : undefined;
   const trading = body.trading ? TradingInput.parse(body.trading) : null;
   const solPolicy = "solPolicy" in body ? SolPolicyInput.parse(body.solPolicy) : undefined;
+  const brief = body.brief ? BriefInput.parse(body.brief) : null;
   const [updated] = await db
     .update(schema.agents)
     .set({
@@ -73,6 +74,7 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
       ...(trading
         ? { tradingMode: trading.mode, tradeMaxSol: trading.maxSolPerTrade, tradeDailySol: trading.dailySol, tradeMints: trading.mints }
         : {}),
+      ...(brief ? { briefEnabled: brief.enabled, briefHourUtc: brief.hourUtc } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.agents.id, agent.id))
@@ -104,6 +106,15 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
         trading.mode === "off"
           ? "Creator turned trading off"
           : `Creator set trading to ${trading.mode} mode (max ${body.trading.maxSolPerTrade} SOL/trade, ${body.trading.dailySol} SOL/day, ${trading.mints.length} coin(s))`,
+    });
+  }
+  if (brief) {
+    await logActivity({
+      agentId: id,
+      type: "policy_updated",
+      status: "info",
+      isPublic: false,
+      message: brief.enabled ? `Creator turned on the daily wallet brief (${String(brief.hourUtc).padStart(2, "0")}:00 UTC)` : "Creator turned off the daily wallet brief",
     });
   }
   if (policy) {

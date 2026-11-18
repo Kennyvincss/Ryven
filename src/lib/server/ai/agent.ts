@@ -23,6 +23,8 @@ import {
 import { connectionFor, readTreasuryState } from "../solana";
 import { getHolders, walletBalances } from "../chain-reads";
 import { getMarketData } from "../market";
+import { analyzePortfolio, portfolioForModel } from "../portfolio";
+import { listBriefs } from "./brief";
 import { listTrades, proposeSwap, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
@@ -153,6 +155,21 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "analyze_portfolio",
+    description:
+      "Full live analysis of a Solana mainnet wallet: every holding with name, amount, USD value, % of portfolio, 24h change, liquidity, market cap and safety signals (mint/freeze authority, top-holder share, bonding curve), allocation (SOL / stablecoins / other), deterministic risk flags (concentration, low SOL for fees, low liquidity, big moves, dust, unknown tokens), optionally the last 8 transactions (swaps, received, sent), and the creator's latest daily brief. Use it whenever the creator asks about their wallet, portfolio, holdings' value, performance or for ideas. wallet: \"creator\", \"trading\" (your autonomous trading wallet) or any address. Read-only.",
+    input_schema: {
+      type: "object",
+      properties: {
+        wallet: { type: "string", description: "\"creator\", \"trading\" or a wallet address" },
+        include_activity: { type: "boolean", description: "Also read recent transactions (slower)" },
+      },
+      required: ["wallet", "include_activity"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
     name: "get_trading_status",
     description:
       "Read the creator's pump.fun trading settings for you (mode off/proposal/autonomous, max SOL per trade, daily SOL limit, allowed coins), SOL spent on buys today, your mainnet trading wallet balances (autonomous mode) and recent trades.",
@@ -238,6 +255,7 @@ const PeriodInput = z.object({ period: z.enum(["today", "7d", "all"]) });
 const PauseInput = z.object({ reason: z.string().min(1).max(300) });
 const WalletInput = z.object({ wallet: z.string().min(1).max(64) });
 const MarketInput = z.object({ mint: z.string().min(1).max(64) });
+const PortfolioInput = z.object({ wallet: z.string().min(1).max(64), include_activity: z.boolean() });
 const TradeInput = z.object({
   action: z.enum(["buy", "sell"]),
   mint: z.string().min(32).max(44),
@@ -535,6 +553,32 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       });
       return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
     }
+    case "analyze_portfolio": {
+      const parsed = PortfolioInput.safeParse(input);
+      if (!parsed.success) return { content: "Invalid input", isError: true };
+      const w = parsed.data.wallet.trim();
+      const address = w === "creator" ? agent.creatorWallet : w === "trading" ? agent.signerPubkey : w;
+      try {
+        new PublicKey(address);
+      } catch {
+        return { content: `"${w}" is not a valid Solana wallet address`, isError: true };
+      }
+      ctx.emit({ type: "status", status: "analysing", message: `Analysing portfolio of ${address.slice(0, 4)}…${address.slice(-4)}${parsed.data.include_activity ? " and recent activity" : ""}` });
+      const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+      const p = await analyzePortfolio(address, { ownMint: own?.network === "mainnet" ? own.mint : null, activity: parsed.data.include_activity ? 8 : 0 });
+      const [latest] = address === agent.creatorWallet ? await listBriefs(agent.id, 1) : [];
+      return {
+        content: JSON.stringify({
+          ...portfolioForModel(p),
+          is_creator: address === agent.creatorWallet,
+          note:
+            address === agent.creatorWallet
+              ? "The creator owns the agent treasury token accounts, so treasury USDC/SOL/own-coin balances are included in this wallet."
+              : undefined,
+          latest_daily_brief: latest ? { at: latest.createdAt.toISOString(), total_usd: latest.totalUsd } : undefined,
+        }),
+      };
+    }
     case "swap_tokens": {
       const parsed = SwapInput.safeParse(input);
       if (!parsed.success) return { content: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
@@ -616,9 +660,10 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
+- Wallet analysis and ideas: when the creator asks about their wallet, portfolio, what they hold, how they're doing or for ideas, call analyze_portfolio ("creator"; include_activity true if they ask what changed or what they did). Lead with the total value and allocation, then the flags that matter, then 2-4 specific ideas grounded in the numbers (quote them). Ideas are suggestions, not financial advice: say so briefly. Offer to propose a trade or swap for an idea, but don't place one unless asked. Never suggest interacting with unknown airdropped tokens.
 - Swaps: you CAN swap tokens on Solana mainnet through Jupiter with swap_tokens (SOL, USDC, USDT, your own coin, or allowlisted coins), e.g. "swap 0.1 SOL to USDC". When the creator asks for a swap, call swap_tokens; the engine checks limits and tells you if trading is off or a token isn't allowed. Same proposal/autonomous rules as trading.
 - Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.
-- Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
+- Keep replies short (under 120 words; portfolio analyses up to 200), in plain text, no markdown tables. Amounts in USDC.`;
 }
 
 /** Runs one natural-language instruction from the creator. Streams events via `emit`. */

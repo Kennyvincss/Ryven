@@ -152,6 +152,18 @@ calls, and a mainnet simulation that refuses it if the wallet would lose more th
 amount plus 10% slippage and fees. In autonomous mode the agent's key is held (encrypted) by
 your Ryven server, so a compromised server could misuse whatever is in that trading wallet.
 
+### Wallet analysis and the daily brief
+
+Ask the agent anytime, e.g. *"Analyse my wallet and give me ideas"* or *"What changed in my
+wallet this week?"*. It values every holding in USD, shows your allocation, flags risks (one
+coin too big, too little SOL for fees, coins with tiny liquidity, unknown airdrops) and
+suggests a few ideas. Ideas only: it never trades unless you ask.
+
+For a **daily brief**: Console → **Wallet brief** → Daily brief **On** → pick a time → Save.
+**Generate now** makes one immediately. Briefs are generated while your Ryven server is
+running (`npm run dev` or `npm start`). On Vercel, set `CRON_SECRET` and add a cron job that
+calls `/api/cron/briefs` hourly (see `.env.example`).
+
 ---
 
 ## 5. Deploying publicly (Vercel + Supabase)

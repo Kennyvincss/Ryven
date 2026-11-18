@@ -43,6 +43,13 @@
       "when": 1794982087800,
       "tag": "0005_swaps",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794982902514,
+      "tag": "0006_wallet_briefs",
+      "breakpoints": true
     }
   ]
 }
