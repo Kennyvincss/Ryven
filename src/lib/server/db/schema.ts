@@ -330,6 +330,36 @@ export const agentActivities = pgTable(
   (t) => [index("activities_agent_created_idx").on(t.agentId, t.createdAt)],
 );
 
+export const alertStatusEnum = pgEnum("alert_status", ["active", "triggered", "cancelled"]);
+
+/** Price / market-cap alerts the agent sets for its creator (checked every minute). */
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    mint: text("mint").notNull(),
+    symbol: text("symbol").notNull(),
+    metric: text("metric").notNull(), // "price" | "market_cap" (USD)
+    direction: text("direction").notNull(), // "above" | "below"
+    target: doublePrecision("target").notNull(),
+    /** Value when the alert was set (for "rises/falls X%" alerts and context). */
+    baseValue: doublePrecision("base_value"),
+    /** How the creator phrased it, e.g. "falls 20%". */
+    condition: text("condition").notNull(),
+    note: text("note"),
+    status: alertStatusEnum("status").notNull().default("active"),
+    triggeredValue: doublePrecision("triggered_value"),
+    triggeredAt: timestamp("triggered_at", { withTimezone: true }),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastValue: doublePrecision("last_value"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("alerts_agent_idx").on(t.agentId, t.createdAt), index("alerts_status_idx").on(t.status)],
+);
+
 export const walletBriefs = pgTable(
   "wallet_briefs",
   {

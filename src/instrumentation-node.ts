@@ -31,3 +31,26 @@ if (process.env.DATABASE_URL && process.env.BRIEF_SCHEDULER !== "false" && !g.__
   g.__ryvenBriefTimer.unref?.();
   setTimeout(tick, 30_000).unref?.();
 }
+
+// Price alerts: checked every minute (in-process). Hosted setups can call /api/cron/alerts.
+// ALERT_SCHEDULER=false turns it off.
+const ga = globalThis as { __ryvenAlertTimer?: ReturnType<typeof setInterval> };
+if (process.env.DATABASE_URL && process.env.ALERT_SCHEDULER !== "false" && !ga.__ryvenAlertTimer) {
+  let running = false;
+  const tick = async () => {
+    if (running) return; // never overlap
+    running = true;
+    try {
+      const { checkAlerts } = await import("./lib/server/alerts");
+      const r = await checkAlerts();
+      if (r.triggered) console.log(`🔔 Price alerts: ${r.triggered} triggered (${r.checked} checked)`);
+    } catch (e) {
+      console.error(`✗ Price alert checker: ${(e as Error).message}`);
+    } finally {
+      running = false;
+    }
+  };
+  ga.__ryvenAlertTimer = setInterval(tick, 60_000);
+  ga.__ryvenAlertTimer.unref?.();
+  setTimeout(tick, 20_000).unref?.();
+}

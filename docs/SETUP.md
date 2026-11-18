@@ -164,6 +164,16 @@ For a **daily brief**: Console → **Wallet brief** → Daily brief **On** → p
 running (`npm run dev` or `npm start`). On Vercel, set `CRON_SECRET` and add a cron job that
 calls `/api/cron/briefs` hourly (see `.env.example`).
 
+### Price alerts
+
+Ask the agent, e.g. *"Alert me if SOL drops below $150"*, *"Tell me when our market cap hits
+$1M"* or *"Alert me if &lt;coin&gt; falls 20%"*. Works for price or market cap, above/below a
+level or a % move from now, on any mainnet token (up to 20 active). Alerts are checked every
+minute while your Ryven server runs. When one hits you see it in the console (banner,
+**Alerts** tab, activity feed); click **Enable browser notifications** in the Alerts tab to
+also get a desktop notification while the console is open. Alerts never trade. On Vercel,
+call `/api/cron/alerts` from a cron job with `CRON_SECRET` (see `.env.example`).
+
 ---
 
 ## 5. Deploying publicly (Vercel + Supabase)

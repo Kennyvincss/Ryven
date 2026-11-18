@@ -25,6 +25,8 @@ import { getHolders, walletBalances } from "../chain-reads";
 import { getMarketData } from "../market";
 import { analyzePortfolio, portfolioForModel } from "../portfolio";
 import { listBriefs } from "./brief";
+import { alertView, cancelAlert, createAlert, listAlerts } from "../alerts";
+import { describeAlert } from "../alert-rules";
 import { listTrades, proposeSwap, proposeTrade, tradeView, tradingSnapshot, tradingWallet } from "../engine/trading";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
@@ -155,6 +157,36 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     strict: true,
   },
   {
+    name: "set_price_alert",
+    description:
+      "Set a price or market-cap alert for the creator on any Solana mainnet token. Checked every minute; when it hits, the creator is notified in the console (Alerts tab, activity feed, browser notification). Alerts only notify: they never trade. token: \"own\" (your coin), \"SOL\", \"USDC\", \"USDT\" or a mint address. metric: \"price\" (USD per token) or \"market_cap\" (USD). condition: \"above\"/\"below\" with value = the USD level (e.g. \"0.002\" or \"1000000\"), or \"rises_pct\"/\"falls_pct\" with value = percent from the current value (e.g. \"20\"). Max 20 active alerts.",
+    input_schema: {
+      type: "object",
+      properties: {
+        token: { type: "string" },
+        metric: { type: "string", enum: ["price", "market_cap"] },
+        condition: { type: "string", enum: ["above", "below", "rises_pct", "falls_pct"] },
+        value: { type: "string", description: "USD level, or percent for rises_pct/falls_pct" },
+        note: { type: "string", description: "Optional reminder shown when it fires, e.g. \"consider taking profit\". Empty string for none." },
+      },
+      required: ["token", "metric", "condition", "value", "note"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    name: "list_price_alerts",
+    description: "List the creator's price alerts: active ones (with the latest checked value) and recently triggered or cancelled ones.",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+    strict: true,
+  },
+  {
+    name: "cancel_price_alert",
+    description: "Cancel an active price alert by its id (from list_price_alerts).",
+    input_schema: { type: "object", properties: { alert_id: { type: "string" } }, required: ["alert_id"], additionalProperties: false },
+    strict: true,
+  },
+  {
     name: "analyze_portfolio",
     description:
       "Full live analysis of a Solana mainnet wallet: every holding with name, amount, USD value, % of portfolio, 24h change, liquidity, market cap and safety signals (mint/freeze authority, top-holder share, bonding curve), allocation (SOL / stablecoins / other), deterministic risk flags (concentration, low SOL for fees, low liquidity, big moves, dust, unknown tokens), optionally the last 8 transactions (swaps, received, sent), and the creator's latest daily brief. Use it whenever the creator asks about their wallet, portfolio, holdings' value, performance or for ideas. wallet: \"creator\", \"trading\" (your autonomous trading wallet) or any address. Read-only.",
@@ -256,6 +288,13 @@ const PauseInput = z.object({ reason: z.string().min(1).max(300) });
 const WalletInput = z.object({ wallet: z.string().min(1).max(64) });
 const MarketInput = z.object({ mint: z.string().min(1).max(64) });
 const PortfolioInput = z.object({ wallet: z.string().min(1).max(64), include_activity: z.boolean() });
+const AlertInput = z.object({
+  token: z.string().min(2).max(44),
+  metric: z.enum(["price", "market_cap"]),
+  condition: z.enum(["above", "below", "rises_pct", "falls_pct"]),
+  value: z.string().regex(/^\d+(\.\d+)?$/, "value must be a plain number like 0.002 or 20"),
+  note: z.string().max(200),
+});
 const TradeInput = z.object({
   action: z.enum(["buy", "sell"]),
   mint: z.string().min(32).max(44),
@@ -553,6 +592,39 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       });
       return { content: JSON.stringify({ ...tradeView(trade), already_submitted_for_this_instruction: duplicate }) };
     }
+    case "set_price_alert": {
+      const parsed = AlertInput.safeParse(input);
+      if (!parsed.success) return { content: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
+      const p = parsed.data;
+      let token = p.token.trim();
+      if (token.toLowerCase() === "own") {
+        const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
+        if (!own || own.network !== "mainnet") return { content: "Your own coin is not on mainnet, so it has no market price to alert on.", isError: true };
+        token = own.mint;
+      }
+      ctx.emit({ type: "status", status: "analysing", message: `Reading the current ${p.metric === "market_cap" ? "market cap" : "price"} and setting the alert` });
+      try {
+        const alert = await createAlert({ agentId: agent.id, token, metric: p.metric, condition: p.condition, value: Number(p.value), note: p.note });
+        ctx.emit({ type: "status", status: "completed", message: `Alert set: ${describeAlert(alert)}` });
+        return { content: JSON.stringify({ ...alertView(alert), checked: "every minute while the Ryven server is running" }) };
+      } catch (e) {
+        if (e instanceof EngineError) return { content: e.message, isError: true };
+        throw e;
+      }
+    }
+    case "list_price_alerts": {
+      const alerts = await listAlerts(agent.id, { limit: 30 });
+      return { content: JSON.stringify({ alerts: alerts.map(alertView) }) };
+    }
+    case "cancel_price_alert": {
+      const { alert_id } = z.object({ alert_id: z.string().uuid() }).parse(input);
+      try {
+        return { content: JSON.stringify({ cancelled: alertView(await cancelAlert(agent.id, alert_id)) }) };
+      } catch (e) {
+        if (e instanceof EngineError) return { content: e.message, isError: true };
+        throw e;
+      }
+    }
     case "analyze_portfolio": {
       const parsed = PortfolioInput.safeParse(input);
       if (!parsed.success) return { content: "Invalid input", isError: true };
@@ -660,6 +732,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
+- Price alerts: you CAN set alerts with set_price_alert (price or market cap, above/below a USD level, or rises/falls X% from now) on any mainnet token, list them and cancel them. When the creator asks to be alerted, warned or told when a price/market cap hits something, call set_price_alert. "Alert me if X doubles" = rises_pct 100; "if it drops 20%" = falls_pct 20; "if market cap hits 1M" = market_cap above 1000000. Confirm the exact target back. Alerts only notify; they never trade.
 - Wallet analysis and ideas: when the creator asks about their wallet, portfolio, what they hold, how they're doing or for ideas, call analyze_portfolio ("creator"; include_activity true if they ask what changed or what they did). Lead with the total value and allocation, then the flags that matter, then 2-4 specific ideas grounded in the numbers (quote them). Ideas are suggestions, not financial advice: say so briefly. Offer to propose a trade or swap for an idea, but don't place one unless asked. Never suggest interacting with unknown airdropped tokens.
 - Swaps: you CAN swap tokens on Solana mainnet through Jupiter with swap_tokens (SOL, USDC, USDT, your own coin, or allowlisted coins), e.g. "swap 0.1 SOL to USDC". When the creator asks for a swap, call swap_tokens; the engine checks limits and tells you if trading is off or a token isn't allowed. Same proposal/autonomous rules as trading.
 - Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.

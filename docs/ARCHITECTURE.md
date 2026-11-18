@@ -274,6 +274,19 @@ Scheduling: an in-process timer (every 10 min, `instrumentation-node.ts`) or
 agent is claimed atomically (`brief_last_at` updated before generating), so overlapping runs
 or several instances never produce duplicates.
 
+### Price alerts
+
+`set_price_alert` / `list_price_alerts` / `cancel_price_alert` (`src/lib/server/alerts.ts`,
+table `price_alerts`). Conditions: price or market cap (USD) above/below a level, or rises /
+falls X% — percentage alerts are turned into a fixed target from the live value when set
+(`alert-rules.ts`, unit-tested), and a level that's already passed is refused. A checker
+runs every minute (in-process timer, never overlapping; or `GET /api/cron/alerts` with
+`CRON_SECRET`), prices all watched mints in one batched Jupiter call (pump.fun curve /
+DexScreener fallback) and fires each alert at most once via an atomic
+`active → triggered` update. A fired alert is logged to the activity feed; the console polls
+and shows a banner plus an optional browser notification. Alerts never trade. Max 20 active
+per agent.
+
 ## 7. Payment execution architecture
 
 ```

@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Activity, ArrowUpRight, CandlestickChart, Lightbulb, Pause, Play, Settings, Users, Wallet, Coins, Send } from "lucide-react";
+import { Activity, ArrowUpRight, Bell, CandlestickChart, Lightbulb, Pause, Play, Settings, Users, Wallet, Coins, Send } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
 import { useSession } from "@/lib/client/session";
@@ -25,6 +25,7 @@ import {
 import { FundTreasury, TreasuryOwnerActions } from "@/components/treasury-actions";
 import { AuthGate } from "@/components/wallet-button";
 import { WalletBriefPanel } from "@/components/wallet-brief";
+import { AlertWatcher, PriceAlertsPanel } from "@/components/price-alerts";
 import { AddressLink, AgentAvatar, Alert, Badge, Button, Card, CardHeader, Spinner, Stat, Tabs } from "@/components/ui";
 
 type AgentResp = {
@@ -60,7 +61,7 @@ function Console({ id }: { id: string }) {
   const [asset, setAsset] = useState<"usdc" | "token" | "sol">("usdc");
   const treasuryQ = useApi<TreasuryState>(`/api/agents/${id}/treasury?asset=${asset}`, { refreshMs: 15000 });
   const actQ = useApi<{ activities: ActivityItem[] }>(`/api/agents/${id}/activities`, { refreshMs: 6000 });
-  const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "trading" | "brief" | "settings">("payments");
+  const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "trading" | "brief" | "alerts" | "settings">("payments");
   const [showFund, setShowFund] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -133,6 +134,8 @@ function Console({ id }: { id: string }) {
         </div>
       </Card>
 
+      <AlertWatcher agentId={id} />
+
       <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-5">
           <AgentTerminal agentId={id} agentName={a.name} avatarSeed={a.avatarSeed} aiEnabled={!!config?.aiEnabled} onActivity={refreshAll} />
@@ -148,6 +151,7 @@ function Console({ id }: { id: string }) {
                 { id: "manual", label: <span className="flex items-center gap-1.5"><Send className="size-3.5" />Manual payment</span> },
                 { id: "trading", label: <span className="flex items-center gap-1.5"><CandlestickChart className="size-3.5" />Trading</span> },
                 { id: "brief", label: <span className="flex items-center gap-1.5"><Lightbulb className="size-3.5" />Wallet brief</span> },
+                { id: "alerts", label: <span className="flex items-center gap-1.5"><Bell className="size-3.5" />Alerts</span> },
                 { id: "settings", label: <span className="flex items-center gap-1.5"><Settings className="size-3.5" />Permissions</span> },
               ]}
             />
@@ -166,6 +170,7 @@ function Console({ id }: { id: string }) {
               )}
               {tab === "trading" && <TradingPanel agentId={id} />}
               {tab === "brief" && <WalletBriefPanel agentId={id} />}
+              {tab === "alerts" && <PriceAlertsPanel agentId={id} />}
               {tab === "settings" && (
                 <>
                   <SettingsPanel agent={a} instructions={d.private?.instructions ?? ""} onSaved={refreshAll} />

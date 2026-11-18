@@ -16,7 +16,7 @@ import { MAINNET_USDC } from "../shared/config";
 
 const KNOWN_STABLES = new Set([MAINNET_USDC, USDT_MINT]);
 
-type JupToken = {
+export type JupToken = {
   id: string;
   name?: string;
   symbol?: string;
@@ -33,7 +33,7 @@ type JupToken = {
 
 /** Jupiter token data for up to 100 mints per request (cached 60s). */
 const tokenCache = new Map<string, { at: number; t: JupToken | null }>();
-async function jupTokens(mints: string[]): Promise<Map<string, JupToken>> {
+export async function jupTokens(mints: string[]): Promise<Map<string, JupToken>> {
   const out = new Map<string, JupToken>();
   const missing: string[] = [];
   for (const m of mints) {
