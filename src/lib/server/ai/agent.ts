@@ -57,7 +57,7 @@ export function paymentView(p: Payment): PaymentView {
     id: p.id,
     recipient: p.recipient,
     amount: fromBaseUnits(p.amount, p.decimals),
-    unit: p.asset === "usdc" ? "USDC" : `$${p.symbol}`,
+    unit: p.asset === "usdc" ? "USDC" : p.asset === "sol" ? "SOL" : `$${p.symbol}`,
     reason: p.reason,
     category: p.category,
     status: p.status,
@@ -106,12 +106,12 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "propose_payments",
     description:
-      "Submit payments to the Ryven payment engine, in USDC (asset \"usdc\") or in this agent's own token (asset \"token\", only if the creator enabled token rewards). The engine (not you) checks every payment against the creator's policy for that asset: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount is a decimal string like \"5\" or \"2.5\" in units of the chosen asset.",
+      "Submit payments to the Ryven payment engine, in USDC (asset \"usdc\"), SOL (asset \"sol\", only if the creator enabled SOL payments; minimum 0.001 SOL) or this agent's own token (asset \"token\", only if the creator enabled token rewards). The engine (not you) checks every payment against the creator's policy for that asset: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount is a decimal string like \"5\" or \"2.5\" in units of the chosen asset.",
     input_schema: {
       type: "object",
       properties: {
         campaign: { type: "string", description: "Short name for this batch, e.g. 'Daily contributor rewards'" },
-        asset: { type: "string", enum: ["usdc", "token"], description: "usdc, or token = this agent's own token" },
+        asset: { type: "string", enum: ["usdc", "token", "sol"], description: "usdc, sol, or token = this agent's own token" },
         category: { type: "string", enum: [...PAYMENT_CATEGORY_IDS] },
         payments: {
           type: "array",
@@ -203,13 +203,13 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
 
 const ProposeInput = z.object({
   campaign: z.string().max(120),
-  asset: z.enum(["usdc", "token"]),
+  asset: z.enum(["usdc", "token", "sol"]),
   category: z.enum(PAYMENT_CATEGORY_IDS),
   payments: z
     .array(
       z.object({
         recipient_wallet: z.string().min(32).max(44),
-        amount: z.string().regex(/^\d+(\.\d{1,6})?$/),
+        amount: z.string().regex(/^\d+(\.\d{1,9})?$/),
         reason: z.string().min(3).max(300),
       }),
     )
@@ -228,6 +228,29 @@ const TradeInput = z.object({
 });
 
 type Ctx = { agentId: string; instructionId: string; emit: (e: AgentEvent) => void };
+
+/** SOL treasury, summarised for the model (or a note that it's disabled). */
+async function solTreasurySummary(agent: typeof schema.agents.$inferSelect) {
+  if (agent.solDailyLimit === null) return { enabled: false, note: "The creator has not enabled SOL payments." };
+  try {
+    const { treasury } = await loadAgent(agent.id, "sol");
+    const [state, snap] = await Promise.all([readTreasuryState(treasury.address, connectionFor(agent.network)), getSpendingSnapshot(agent.id, "sol")]);
+    const f = (v: bigint) => fromBaseUnits(v, 9);
+    const delegated = state.delegate === agent.signerPubkey;
+    return {
+      enabled: true,
+      onchain_balance_sol: f(state.balance),
+      onchain_allowance_sol: delegated ? f(state.allowance) : "0",
+      spent_or_reserved_today_sol: f(snap.reservedToday),
+      max_per_transaction_sol: f(agent.solMaxPerTx ?? 0n),
+      autonomous_limit_sol: f(agent.solAutoApproveLimit ?? 0n),
+      daily_limit_sol: f(agent.solDailyLimit),
+      minimum_payment_sol: "0.001",
+    };
+  } catch (e) {
+    return { enabled: true, error: (e as Error).message };
+  }
+}
 
 /** Own-token rewards treasury, summarised for the model (or a note that it's disabled). */
 async function tokenTreasurySummary(agent: typeof schema.agents.$inferSelect) {
@@ -284,6 +307,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
           },
           day_resets_at_utc: new Date(snap.dayStartsAt.getTime() + 86400000).toISOString(),
           own_token_rewards: await tokenTreasurySummary(agent),
+          sol_payments: await solTreasurySummary(agent),
         }),
       };
     }
@@ -346,7 +370,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       ctx.emit({ type: "status", status: "checking_permissions", message: `Checking ${payments.length} payment(s) against the spending policy` });
       const items = payments.map((p) => ({
         recipient: p.recipient_wallet.trim(),
-        amount: toBaseUnits(p.amount, asset === "usdc" ? USDC_DECIMALS : LAUNCH_TOKEN_DECIMALS),
+        amount: toBaseUnits(p.amount, asset === "usdc" ? USDC_DECIMALS : asset === "sol" ? 9 : LAUNCH_TOKEN_DECIMALS),
         category,
         reason: p.reason,
         campaign,
@@ -540,7 +564,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - For price, market cap, volume, liquidity or bonding-curve progress use get_market_data (mint "own" for your token). Quote numbers with their source.
 - For holders, supply or distribution questions use get_token_info. For the creator's own holdings use get_wallet_balances with "creator". You can look up any wallet.
 - Trading: you CAN buy and sell pump.fun coins on Solana mainnet (on the bonding curve or after graduation) with propose_trade. When the creator asks you to buy or sell, call propose_trade; don't refuse on your own. The engine decides: if trading is off, a coin isn't allowed or a limit is exceeded, it tells you why, and you pass that on (trading is turned on in the console → Permissions → pump.fun trading). Your own coin is always allowed. Proposal mode: the creator signs each trade in the console's Trading tab. Autonomous mode: you trade from your own trading wallet within the creator's limits. Don't trade on your own initiative unless the creator's standing instructions say so. Use get_market_data to check prices before or after a trade.
-- Rewards can be paid in USDC or in your own token (asset "token") if the creator enabled token rewards; get_treasury_status shows both.
+- Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.
 - Keep replies short (under 120 words), in plain text, no markdown tables. Amounts in USDC.`;
 }
 

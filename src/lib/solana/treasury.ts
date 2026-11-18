@@ -24,7 +24,7 @@ import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.j
 import { sha256 } from "@noble/hashes/sha2.js";
 import { USDC_DECIMALS } from "../shared/config";
 
-export type TreasuryAsset = "usdc" | "token";
+export type TreasuryAsset = "usdc" | "token" | "sol";
 
 /** Describes which token a treasury holds. Defaults describe the USDC treasury. */
 export type TreasuryToken = {
@@ -34,9 +34,10 @@ export type TreasuryToken = {
   decimals: number;
 };
 
-/** Seed is ≤ 32 chars: "ryv"/"ryt" + first 29 hex chars of the agent UUID. */
+/** Seed is ≤ 32 chars: "ryv" (USDC) / "ryt" (own token) / "rys" (SOL) + first 29 hex chars of the agent UUID. */
 export function treasurySeed(agentId: string, asset: TreasuryAsset = "usdc"): string {
-  return ((asset === "usdc" ? "ryv" : "ryt") + agentId.replace(/-/g, "")).slice(0, 32);
+  const prefix = asset === "usdc" ? "ryv" : asset === "token" ? "ryt" : "rys";
+  return (prefix + agentId.replace(/-/g, "")).slice(0, 32);
 }
 
 export function deriveTreasuryAddress(owner: PublicKey, agentId: string, asset: TreasuryAsset = "usdc", programId: PublicKey = TOKEN_PROGRAM_ID): PublicKey {

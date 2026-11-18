@@ -88,6 +88,46 @@ export async function signAgentPayment(args: {
   }
 }
 
+/**
+ * SOL payment: the only other payment shape the agent key signs (see solana/sol-payment.ts).
+ * Built here, signed by fee payer + agent + a fresh temporary account key.
+ */
+export async function signAgentSolPayment(args: {
+  paymentId: string;
+  agentId: string;
+  agentSignerPubkey: string;
+  treasury: string;
+  recipient: string;
+  lamports: bigint;
+  recentBlockhash: string;
+  tempRentLamports: number;
+  network: "devnet" | "mainnet";
+}): Promise<{ tx: Transaction; signature: string }> {
+  const { buildAgentSolPaymentTransaction } = await import("../solana/sol-payment");
+  const feePayer = getFeePayerFor(args.network);
+  const agentKp = await loadAgentKeypair(args.agentId, args.agentSignerPubkey);
+  const temp = Keypair.generate();
+  try {
+    const tx = buildAgentSolPaymentTransaction({
+      paymentId: args.paymentId,
+      feePayer: feePayer.publicKey,
+      agentSigner: agentKp.publicKey,
+      treasury: new PublicKey(args.treasury),
+      recipient: new PublicKey(args.recipient),
+      lamports: args.lamports,
+      temp: temp.publicKey,
+      tempRentLamports: args.tempRentLamports,
+      recentBlockhash: args.recentBlockhash,
+    });
+    tx.sign(feePayer, agentKp, temp);
+    const bs58 = (await import("bs58")).default;
+    return { tx, signature: bs58.encode(tx.signature!) };
+  } finally {
+    agentKp.secretKey.fill(0);
+    temp.secretKey.fill(0);
+  }
+}
+
 // ───────────────────────────── trading wallet (mainnet) ─────────────────────────────
 // In autonomous trading mode the agent's key also acts as its own small mainnet
 // trading wallet, funded with SOL by the creator. These two functions are the only

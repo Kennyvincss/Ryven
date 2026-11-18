@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getSession } from "@/lib/server/auth";
-import { PolicyInput, ProfileInput, TokenPolicyInput, TradingInput, requireCreator } from "@/lib/server/agents";
+import { PolicyInput, ProfileInput, SolPolicyInput, TokenPolicyInput, TradingInput, requireCreator } from "@/lib/server/agents";
 import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
@@ -54,6 +54,7 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
   const policy = body.policy ? PolicyInput.parse(body.policy) : null;
   const tokenPolicy = "tokenPolicy" in body ? TokenPolicyInput.parse(body.tokenPolicy) : undefined;
   const trading = body.trading ? TradingInput.parse(body.trading) : null;
+  const solPolicy = "solPolicy" in body ? SolPolicyInput.parse(body.solPolicy) : undefined;
   const [updated] = await db
     .update(schema.agents)
     .set({
@@ -65,6 +66,9 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
             tokenAutoApproveLimit: tokenPolicy?.autoApproveLimit ?? null,
             tokenDailyLimit: tokenPolicy?.dailyLimit ?? null,
           }
+        : {}),
+      ...(solPolicy !== undefined
+        ? { solMaxPerTx: solPolicy?.maxPerTx ?? null, solAutoApproveLimit: solPolicy?.autoApproveLimit ?? null, solDailyLimit: solPolicy?.dailyLimit ?? null }
         : {}),
       ...(trading
         ? { tradingMode: trading.mode, tradeMaxSol: trading.maxSolPerTrade, tradeDailySol: trading.dailySol, tradeMints: trading.mints }
@@ -81,6 +85,14 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
       message: tokenPolicy
         ? `Creator enabled token rewards (max/payment ${body.tokenPolicy.maxPerTx}, daily ${body.tokenPolicy.dailyLimit})`
         : "Creator disabled token rewards",
+    });
+  }
+  if (solPolicy !== undefined) {
+    await logActivity({
+      agentId: id,
+      type: "policy_updated",
+      status: "info",
+      message: solPolicy ? `Creator enabled SOL payments (max/payment ${body.solPolicy.maxPerTx} SOL, daily ${body.solPolicy.dailyLimit} SOL)` : "Creator disabled SOL payments",
     });
   }
   if (trading) {

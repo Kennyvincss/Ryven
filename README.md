@@ -27,6 +27,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - Real USDC transfers, signature persisted before broadcast, on-chain verification of every payment (proven end-to-end in test mode, see `docs/ARCHITECTURE.md`)
 - Token & agent discovery, public agent profiles, user dashboard, admin monitor with global kill switch
 - Optional **pump.fun launches on Solana mainnet** (real SOL) via PumpPortal: coins show on pump.fun (setup: `docs/SETUP.md` §6)
+- **SOL payments**: agents send plain SOL from a creator-owned (wrapped-SOL) treasury under a capped on-chain allowance
 - **Rewards in your own token**: agents can pay contributors in the launched token (e.g. $DOGE2) from a second creator-owned treasury with its own limits
 - Agent can read **token holders, supply and any wallet's balances**
 - Optional **agent trading on pump.fun** (mainnet, real SOL): *proposal* mode (you sign each trade) or *autonomous* mode (agent trades from its own funded wallet within strict limits) (`docs/SETUP.md` §7)

@@ -42,6 +42,7 @@ type AgentResp = {
     signerPubkey: string;
     policy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string; categories: string[]; recipientPolicy: "allowlist_only" | "allowlist_or_approval" };
     tokenPolicy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
+    solPolicy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
     trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] };
     treasury: { address: string; mint: string } | null;
   };
@@ -55,7 +56,7 @@ type AgentResp = {
 function Console({ id }: { id: string }) {
   const config = useAppConfig();
   const agentQ = useApi<AgentResp>(`/api/agents/${id}`);
-  const [asset, setAsset] = useState<"usdc" | "token">("usdc");
+  const [asset, setAsset] = useState<"usdc" | "token" | "sol">("usdc");
   const treasuryQ = useApi<TreasuryState>(`/api/agents/${id}/treasury?asset=${asset}`, { refreshMs: 15000 });
   const actQ = useApi<{ activities: ActivityItem[] }>(`/api/agents/${id}/activities`, { refreshMs: 6000 });
   const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "trading" | "settings">("payments");
@@ -158,6 +159,7 @@ function Console({ id }: { id: string }) {
                   categories={a.policy.categories}
                   onDone={refreshAll}
                   tokenSymbol={a.tokenPolicy ? (d.token?.symbol ?? null) : null}
+                  solEnabled={!!a.solPolicy}
                 />
               )}
               {tab === "trading" && <TradingPanel agentId={id} />}
@@ -165,6 +167,7 @@ function Console({ id }: { id: string }) {
                 <>
                   <SettingsPanel agent={a} instructions={d.private?.instructions ?? ""} onSaved={refreshAll} />
                   <TokenRewardSettings agentId={id} symbol={d.token?.symbol ?? "TOKEN"} value={a.tokenPolicy} onSaved={refreshAll} />
+                  <TokenRewardSettings agentId={id} symbol="SOL" asset="sol" value={a.solPolicy} onSaved={refreshAll} />
                   <TradingSettings agentId={id} value={a.trading} onSaved={refreshAll} />
                 </>
               )}
@@ -175,7 +178,7 @@ function Console({ id }: { id: string }) {
         <div className="space-y-5">
           <Card>
             <div className="flex gap-1 px-4 pt-3">
-              {(["usdc", "token"] as const).map((a) => (
+              {(["usdc", "sol", "token"] as const).map((a) => (
                 <button
                   key={a}
                   onClick={() => {
@@ -184,12 +187,12 @@ function Console({ id }: { id: string }) {
                   }}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${asset === a ? "bg-panel-3 text-text" : "text-muted hover:text-text"}`}
                 >
-                  {a === "usdc" ? usdcLabelFor(d.agent.network) : `$${d.token?.symbol ?? "TOKEN"} rewards`}
+                  {a === "usdc" ? usdcLabelFor(d.agent.network) : a === "sol" ? "SOL" : `$${d.token?.symbol ?? "TOKEN"} rewards`}
                 </button>
               ))}
             </div>
             <CardHeader
-              title={asset === "usdc" ? "Treasury" : `$${d.token?.symbol ?? ""} rewards treasury`}
+              title={asset === "usdc" ? "Treasury" : asset === "sol" ? "SOL treasury" : `$${d.token?.symbol ?? ""} rewards treasury`}
               subtitle={t ? <AddressLink address={t.address} network={a.network} /> : "Reading from Solana…"}
               icon={<Wallet className="size-4" />}
               right={
@@ -203,6 +206,11 @@ function Console({ id }: { id: string }) {
                 <Spinner />
               ) : (
                 <>
+                  {t.asset === "sol" && !t.enabled && (
+                    <Alert tone="info" title="SOL payments are off">
+                      Enable them under Permissions (set SOL limits), then fund this treasury with SOL and give the agent an allowance.
+                    </Alert>
+                  )}
                   {t.asset === "token" && !t.enabled && (
                     <Alert tone="info" title={`Rewards in ${t.unit} are off`}>
                       Enable them under Permissions (set token limits), then fund this treasury with {t.unit} and give the agent an allowance.

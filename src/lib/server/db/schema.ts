@@ -27,7 +27,7 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 export const launchModeEnum = pgEnum("launch_mode", ["fixed_supply", "bonding_curve", "pumpfun"]);
 export const networkEnum = pgEnum("network", ["devnet", "mainnet"]);
 /** What a treasury / payment is denominated in: USDC, or the agent's own launched token. */
-export const assetEnum = pgEnum("asset", ["usdc", "token"]);
+export const assetEnum = pgEnum("asset", ["usdc", "token", "sol"]);
 export const tradingModeEnum = pgEnum("trading_mode", ["off", "proposal", "autonomous"]);
 export const tradeSideEnum2 = pgEnum("trade_action", ["buy", "sell"]);
 export const tradeStatusEnum = pgEnum("trade_status", [
@@ -159,6 +159,10 @@ export const agents = pgTable(
     tokenMaxPerTx: bigint("token_max_per_tx", { mode: "bigint" }),
     tokenAutoApproveLimit: bigint("token_auto_approve_limit", { mode: "bigint" }),
     tokenDailyLimit: bigint("token_daily_limit", { mode: "bigint" }),
+    // ── SOL payments (lamports). null = disabled ──
+    solMaxPerTx: bigint("sol_max_per_tx", { mode: "bigint" }),
+    solAutoApproveLimit: bigint("sol_auto_approve_limit", { mode: "bigint" }),
+    solDailyLimit: bigint("sol_daily_limit", { mode: "bigint" }),
     // ── pump.fun trading on mainnet (lamports). Only the creator can change these. ──
     tradingMode: tradingModeEnum("trading_mode").notNull().default("off"),
     tradeMaxSol: bigint("trade_max_sol", { mode: "bigint" }).notNull().default(sql`0`),

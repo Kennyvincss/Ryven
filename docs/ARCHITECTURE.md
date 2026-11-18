@@ -215,6 +215,16 @@ its own on-chain allowance and its own limits (`token_max_per_tx`, `token_daily_
 `token_auto_approve_limit`). Payments, approvals, verification and idempotency are shared;
 every payment row records its `asset`, `symbol` and `decimals`.
 
+### SOL payments (third treasury)
+
+Native SOL can't be delegated, so the SOL treasury is a creator-owned **wrapped-SOL** token
+account (seed `"rys…"`) with the agent as capped delegate. Each payment is one atomic
+transaction: the fee payer creates a temporary wrapped-SOL account, the agent (as delegate)
+moves the amount into it, it is closed (unwrapped) to the fee payer, and the fee payer
+forwards exactly that amount of **plain SOL** to the recipient (+ memo). The fee payer ends
+where it started minus network fees; Solana still enforces the allowance. Minimum 0.001 SOL.
+Verified in LiteSVM and end-to-end (e2e step 10).
+
 ### Agent trading on pump.fun (mainnet)
 
 | Mode | Who signs | Funds at risk |

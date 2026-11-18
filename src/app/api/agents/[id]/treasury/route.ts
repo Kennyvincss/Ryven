@@ -21,7 +21,8 @@ type P = { params: Promise<{ id: string }> };
  */
 export const GET = handler(async (req: Request, { params }: P) => {
   const { id } = await params;
-  const asset = new URL(req.url).searchParams.get("asset") === "token" ? "token" : "usdc";
+  const q = new URL(req.url).searchParams.get("asset");
+  const asset = q === "token" ? "token" : q === "sol" ? "sol" : "usdc";
   const { agent, treasury } = await loadAgent(id, asset);
   await reconcileAgent(id);
   const policy = toPolicy(agent, treasury);

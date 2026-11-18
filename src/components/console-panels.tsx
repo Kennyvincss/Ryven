@@ -29,7 +29,7 @@ export type Payment = {
 };
 export type Contributor = { id: string; wallet: string; handle: string; role: string; status: string; activityScore: number; note?: string };
 export type TreasuryState = {
-  asset: "usdc" | "token";
+  asset: "usdc" | "token" | "sol";
   unit: string;
   symbol: string;
   decimals: number;
@@ -195,6 +195,7 @@ export function ManualPayment({
   categories,
   onDone,
   tokenSymbol,
+  solEnabled,
 }: {
   agentId: string;
   contributors: Contributor[];
@@ -202,8 +203,11 @@ export function ManualPayment({
   onDone: () => void;
   /** Set when token rewards are enabled: allows paying in the agent's own token. */
   tokenSymbol?: string | null;
+  solEnabled?: boolean;
 }) {
-  const [f, setF] = useState({ recipient: "", amount: "1", category: categories[0] ?? "community_rewards", reason: "", asset: "usdc" as "usdc" | "token" });
+  const [f, setF] = useState({ recipient: "", amount: "1", category: categories[0] ?? "community_rewards", reason: "", asset: "usdc" as "usdc" | "token" | "sol" });
+  const assets = (["usdc", ...(solEnabled ? ["sol"] : []), ...(tokenSymbol ? ["token"] : [])] as ("usdc" | "token" | "sol")[]);
+  const unitOf = (a: "usdc" | "token" | "sol") => (a === "usdc" ? usdcLabel : a === "sol" ? "SOL" : `$${tokenSymbol}`);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Payment | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -235,22 +239,22 @@ export function ManualPayment({
         </Select>
       </Field>
       <Input placeholder="…or paste any wallet address" value={f.recipient} onChange={(e) => setF({ ...f, recipient: e.target.value.trim() })} />
-      {tokenSymbol && (
+      {assets.length > 1 && (
         <div className="flex gap-1 rounded-xl border border-line bg-panel-2 p-1">
-          {(["usdc", "token"] as const).map((a) => (
+          {assets.map((a) => (
             <button
               key={a}
               type="button"
               onClick={() => setF({ ...f, asset: a })}
               className={cn("flex-1 rounded-lg px-3 py-1.5 text-xs font-medium", f.asset === a ? "bg-panel-3 text-text" : "text-muted")}
             >
-              Pay in {a === "usdc" ? usdcLabel : `$${tokenSymbol}`}
+              Pay in {unitOf(a)}
             </button>
           ))}
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <Field label={`Amount (${f.asset === "usdc" ? usdcLabel : `$${tokenSymbol}`})`}>
+        <Field label={`Amount (${unitOf(f.asset)})`}>
           <Input inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
         </Field>
         <Field label="Category">

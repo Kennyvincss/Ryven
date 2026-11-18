@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useNetworkConnection } from "@/lib/client/network";
 import { ACCOUNT_SIZE, TOKEN_PROGRAM_ID, getAccountLenForMint, getMint } from "@solana/spl-token";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { buildFundSolTreasuryInstructions, buildWithdrawSolInstructions } from "@/lib/solana/sol-payment";
 import { ArrowDownToLine, ArrowUpFromLine, Ban, KeyRound } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { sendWalletTransaction } from "@/lib/client/wallet-tx";
@@ -26,7 +27,7 @@ type AgentRef = {
 };
 
 /** Which treasury an action targets. Omitted = the agent's USDC treasury. */
-export type TreasurySpec = { asset: "usdc" | "token"; address: string; mint: string; tokenProgram: string; decimals: number; unit: string };
+export type TreasurySpec = { asset: "usdc" | "token" | "sol"; address: string; mint: string; tokenProgram: string; decimals: number; unit: string };
 
 function resolveSpec(agent: AgentRef, spec?: TreasurySpec): TreasurySpec | null {
   if (spec) return spec;
@@ -40,13 +41,14 @@ function useTx(network: "devnet" | "mainnet" = APP_NETWORK) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sig, setSig] = useState<string | null>(null);
-  async function run(agentId: string, build: () => Promise<Transaction>) {
+  async function run(agentId: string, build: () => Promise<Transaction | { tx: Transaction; signers: Keypair[] }>) {
     setBusy(true);
     setError(null);
     setSig(null);
     try {
-      const tx = await build();
-      const s = await sendWalletTransaction(wallet, connection, tx);
+      const built = await build();
+      const { tx, signers } = built instanceof Transaction ? { tx: built, signers: [] as Keypair[] } : built;
+      const s = await sendWalletTransaction(wallet, connection, tx, signers);
       setSig(s);
       // The server re-reads the transaction from Solana; it never trusts our numbers.
       await api(`/api/agents/${agentId}/treasury`, { json: { signature: s } });
@@ -66,8 +68,9 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
   const { run, busy, error, sig, wallet, connection } = useTx(agent.network);
   const t = resolveSpec(agent, spec);
   const isToken = t?.asset === "token";
-  const [deposit, setDeposit] = useState(isToken ? "10000" : "100");
-  const [allowance, setAllowance] = useState(isToken ? "10000" : "100");
+  const isSol = t?.asset === "sol";
+  const [deposit, setDeposit] = useState(isToken ? "10000" : isSol ? "0.1" : "100");
+  const [allowance, setAllowance] = useState(isToken ? "10000" : isSol ? "0.1" : "100");
   const [exists, setExists] = useState<boolean | null>(null);
   const [usdcBal, setUsdcBal] = useState<string | null>(null);
   const isOwner = wallet.publicKey?.toBase58() === agent.creatorWallet;
@@ -77,7 +80,9 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
   useEffect(() => {
     if (!tAddress || !tMint) return;
     connection.getAccountInfo(new PublicKey(tAddress)).then((a) => setExists(!!a)).catch(() => setExists(null));
-    if (wallet.publicKey) {
+    if (wallet.publicKey && t?.asset === "sol") {
+      connection.getBalance(wallet.publicKey).then((l) => setUsdcBal((l / 1e9).toString())).catch(() => setUsdcBal(null));
+    } else if (wallet.publicKey) {
       connection
         .getParsedTokenAccountsByOwner(wallet.publicKey, { mint: new PublicKey(tMint) })
         .then((r) => {
@@ -87,7 +92,7 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
         })
         .catch(() => setUsdcBal(null));
     }
-  }, [tAddress, tMint, connection, wallet.publicKey, sig]);
+  }, [tAddress, tMint, connection, wallet.publicKey, sig, t?.asset]);
 
   if (!t) return <Alert tone="danger">This agent has no treasury record.</Alert>;
   if (!isOwner) return <Alert tone="warn">Connect the creator wallet to fund this treasury.</Alert>;
@@ -95,6 +100,19 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
   const submit = () =>
     run(agent.id, async () => {
       const owner = wallet.publicKey!;
+      if (t.asset === "sol") {
+        const ixs = buildFundSolTreasuryInstructions({
+          owner,
+          agentId: agent.id,
+          agentSigner: new PublicKey(agent.signerPubkey),
+          createAccount: exists === false,
+          rentLamports: await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE),
+          depositLamports: deposit ? toBaseUnits(deposit, 9) : 0n,
+          allowance: allowance !== "" ? toBaseUnits(allowance, 9) : null,
+        });
+        if (!ixs.length) throw new Error("Nothing to do");
+        return new Transaction().add(...ixs);
+      }
       const programId = new PublicKey(t.tokenProgram);
       const mint = new PublicKey(t.mint);
       // Token-2022 accounts may need extra space for the mint's account extensions.
@@ -141,7 +159,7 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
           This treasury holds real {t.unit}. Your wallet must be on Solana Mainnet, and only delegate what you&apos;re comfortable letting the agent spend.
         </Alert>
       )}
-      {usdcBal === "0" && !isToken && (
+      {usdcBal === "0" && !isToken && !isSol && (
         <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>
           {(agent.network ?? APP_NETWORK) === "mainnet" ? (
             <>Buy or swap for USDC (e.g. in Phantom&apos;s swap or on jup.ag) and send it to this wallet on Solana mainnet.</>
@@ -173,7 +191,7 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
 
 /** Creator-only advanced actions: revoke (on-chain kill switch) and withdraw. */
 export function TreasuryOwnerActions({ agent, balance, onDone, spec }: { agent: AgentRef; balance: string; onDone?: () => void; spec?: TreasurySpec }) {
-  const { run, busy, error, sig, wallet } = useTx(agent.network);
+  const { run, busy, error, sig, wallet, connection } = useTx(agent.network);
   const [amount, setAmount] = useState("");
   const t = resolveSpec(agent, spec);
   if (wallet.publicKey?.toBase58() !== agent.creatorWallet || !t) return null;
@@ -186,11 +204,19 @@ export function TreasuryOwnerActions({ agent, balance, onDone, spec }: { agent: 
           variant="secondary"
           loading={busy}
           onClick={() =>
-            run(agent.id, async () =>
-              new Transaction().add(
+            run(agent.id, async () => {
+              if (t.asset === "sol") {
+                const temp = Keypair.generate();
+                const rent = await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE);
+                return {
+                  tx: new Transaction().add(...buildWithdrawSolInstructions(wallet.publicKey!, agent.id, toBaseUnits(amount || balance, 9), temp.publicKey, rent)),
+                  signers: [temp],
+                };
+              }
+              return new Transaction().add(
                 ...buildWithdrawInstructions(wallet.publicKey!, agent.id, new PublicKey(t.mint), toBaseUnits(amount || balance, t.decimals), t.asset, programId, t.decimals),
-              ),
-            ).then((s) => s && onDone?.())
+              );
+            }).then((s) => s && onDone?.())
           }
         >
           <ArrowUpFromLine className="size-4" /> Withdraw

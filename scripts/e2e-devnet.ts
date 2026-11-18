@@ -23,6 +23,7 @@ import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transa
 import { confirmByPolling } from "../src/lib/solana/confirm";
 import { buildLaunchTransaction } from "../src/lib/solana/launch";
 import { buildFundTreasuryInstructions } from "../src/lib/solana/treasury";
+import { buildFundSolTreasuryInstructions } from "../src/lib/solana/sol-payment";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const conn = new Connection(process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com", "confirmed");
@@ -76,7 +77,7 @@ async function main() {
   step(0, "Fund creator with devnet SOL (from fee payer) and 100 Test USDC");
   await sendAndConfirmTransaction(
     conn,
-    new Transaction().add(SystemProgram.transfer({ fromPubkey: feePayer.publicKey, toPubkey: creator.publicKey, lamports: 0.06 * LAMPORTS_PER_SOL })),
+    new Transaction().add(SystemProgram.transfer({ fromPubkey: feePayer.publicKey, toPubkey: creator.publicKey, lamports: 0.1 * LAMPORTS_PER_SOL })),
     [feePayer],
   );
   const creatorAta = getAssociatedTokenAddressSync(USDC, creator.publicKey);
@@ -254,6 +255,48 @@ async function main() {
   assert(overTok.payment.status === "rejected", "2,000 $DOGE2 > token max per payment → rejected");
   const usdcStill = await call<{ onchain: { balance: string } }>(`/api/agents/${agent.id}/treasury`);
   assert(usdcStill.onchain.balance === "85", "USDC treasury untouched by token payments (still 85)");
+
+  step(10, "SOL payments: agent sends plain SOL from a creator-owned wrapped-SOL treasury");
+  await call(`/api/agents/${agent.id}`, { solPolicy: { maxPerTx: "0.01", autoApproveLimit: "0.01", dailyLimit: "0.02" } }, "PATCH");
+  const st = await call<{ address: string; enabled: boolean }>(`/api/agents/${agent.id}/treasury?asset=sol`);
+  assert(st.enabled, "SOL payments enabled; SOL treasury derived");
+  const fundSolTx = new Transaction().add(
+    ...buildFundSolTreasuryInstructions({
+      owner: creator.publicKey,
+      agentId: agent.id,
+      agentSigner: new PublicKey(agent.signerPubkey),
+      createAccount: true,
+      rentLamports: await conn.getMinimumBalanceForRentExemption(ACCOUNT_SIZE),
+      depositLamports: 20_000_000n, // 0.02 SOL
+      allowance: 15_000_000n, // 0.015 SOL
+    }),
+  );
+  const fundSolSig = await sendAndConfirmTransaction(conn, fundSolTx, [creator]);
+  await call(`/api/agents/${agent.id}/treasury`, { signature: fundSolSig });
+  const st2 = await call<{ onchain: { balance: string; allowance: string; delegatedToAgent: boolean } }>(`/api/agents/${agent.id}/treasury?asset=sol`);
+  assert(st2.onchain.balance === "0.02" && st2.onchain.allowance === "0.015" && st2.onchain.delegatedToAgent, `SOL treasury holds 0.02 SOL (wrapped), 0.015 delegated: ${explorer(fundSolSig)}`);
+  const solRecipient = contributors[2].publicKey;
+  const solBefore = await conn.getBalance(solRecipient);
+  const solPay = await call<{ payment: { status: string; signature: string; error: string | null; unit: string } }>(`/api/agents/${agent.id}/payments`, {
+    recipient: solRecipient.toBase58(),
+    amount: "0.005",
+    category: "community_rewards",
+    reason: "SOL reward",
+    idempotencyKey: crypto.randomUUID(),
+    asset: "sol",
+  });
+  assert(solPay.payment.status === "confirmed" && solPay.payment.unit === "SOL", `0.005 SOL paid on-chain: ${explorer(solPay.payment.signature)} ${solPay.payment.error ?? ""}`);
+  const solAfter = await conn.getBalance(solRecipient);
+  assert(solAfter - solBefore === 5_000_000, "recipient's plain SOL balance went up by exactly 0.005 SOL");
+  const overSol = await call<{ payment: { status: string } }>(`/api/agents/${agent.id}/payments`, {
+    recipient: contributors[0].publicKey.toBase58(),
+    amount: "0.02",
+    category: "community_rewards",
+    reason: "too much",
+    idempotencyKey: crypto.randomUUID(),
+    asset: "sol",
+  });
+  assert(overSol.payment.status === "rejected", "0.02 SOL > SOL max per payment → rejected");
 
   console.log("\n\x1b[32mE2E PASSED\x1b[0m. Agent console:", `${BASE}/console/${agent.id}`);
 }

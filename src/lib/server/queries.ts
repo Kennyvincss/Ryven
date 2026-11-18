@@ -67,6 +67,14 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
             dailyLimit: fromBaseUnits(a.tokenDailyLimit, 6),
           }
         : null,
+    solPolicy:
+      a.solDailyLimit !== null
+        ? {
+            maxPerTx: fromBaseUnits(a.solMaxPerTx ?? 0n, 9),
+            autoApproveLimit: fromBaseUnits(a.solAutoApproveLimit ?? 0n, 9),
+            dailyLimit: fromBaseUnits(a.solDailyLimit, 9),
+          }
+        : null,
     trading: {
       mode: a.tradingMode,
       maxSolPerTrade: fromBaseUnits(a.tradeMaxSol, 9),
@@ -103,7 +111,7 @@ export function paymentPublicView(p: Payment) {
     recipient: p.recipient,
     amount: fromBaseUnits(p.amount, p.decimals),
     asset: p.asset,
-    unit: p.asset === "usdc" ? "USDC" : `$${p.symbol}`,
+    unit: p.asset === "usdc" ? "USDC" : p.asset === "sol" ? "SOL" : `$${p.symbol}`,
     mint: p.mint,
     category: p.category,
     campaign: p.campaign,

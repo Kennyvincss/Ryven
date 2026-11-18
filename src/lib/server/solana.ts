@@ -107,6 +107,18 @@ export function tokenDeltaForAccount(tx: VersionedTransactionResponse, account: 
   return find(tx.meta?.postTokenBalances) - find(tx.meta?.preTokenBalances);
 }
 
+/** Net SOL (lamports) change of an account in a transaction. */
+export function solDeltaForAccount(tx: VersionedTransactionResponse, account: string): bigint {
+  const keys = [
+    ...tx.transaction.message.staticAccountKeys,
+    ...(tx.meta?.loadedAddresses?.writable ?? []),
+    ...(tx.meta?.loadedAddresses?.readonly ?? []),
+  ].map((k) => k.toBase58());
+  const i = keys.indexOf(account);
+  if (i < 0 || !tx.meta) return 0n;
+  return BigInt(tx.meta.postBalances[i]) - BigInt(tx.meta.preBalances[i]);
+}
+
 export function txSigners(tx: VersionedTransactionResponse): string[] {
   const msg = tx.transaction.message;
   const n = msg.header.numRequiredSignatures;

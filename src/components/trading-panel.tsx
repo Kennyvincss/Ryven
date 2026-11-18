@@ -197,22 +197,27 @@ export function TokenRewardSettings({
   symbol,
   value,
   onSaved,
+  asset = "token",
 }: {
   agentId: string;
   symbol: string;
   value: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
   onSaved: () => void;
+  /** "token" = the agent's own coin, "sol" = native SOL. */
+  asset?: "token" | "sol";
 }) {
+  const isSol = asset === "sol";
+  const label = isSol ? "SOL" : `$${symbol}`;
   const [enabled, setEnabled] = useState(!!value);
-  const [f, setF] = useState(value ?? { maxPerTx: "1000", autoApproveLimit: "1000", dailyLimit: "5000" });
+  const [f, setF] = useState(value ?? (isSol ? { maxPerTx: "0.05", autoApproveLimit: "0.05", dailyLimit: "0.2" } : { maxPerTx: "1000", autoApproveLimit: "1000", dailyLimit: "5000" }));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   async function save() {
     setBusy(true);
     setMsg(null);
     try {
-      await api(`/api/agents/${agentId}`, { method: "PATCH", json: { tokenPolicy: enabled ? f : null } });
-      setMsg({ ok: true, text: enabled ? `Token rewards on. Fund the $${symbol} rewards treasury from the Treasury card.` : "Token rewards off." });
+      await api(`/api/agents/${agentId}`, { method: "PATCH", json: { [isSol ? "solPolicy" : "tokenPolicy"]: enabled ? f : null } });
+      setMsg({ ok: true, text: enabled ? `${label} payments on. Fund the ${label} treasury from the Treasury card.` : `${label} payments off.` });
       onSaved();
     } catch (e) {
       const issues = (e as { body?: { issues?: { message: string }[] } }).body?.issues;
@@ -225,16 +230,20 @@ export function TokenRewardSettings({
     <div className="space-y-4 border-t border-line p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <Coins className="size-4 text-accent" /> Rewards in ${symbol}
+          <Coins className="size-4 text-accent" /> {isSol ? "SOL payments" : `Rewards in $${symbol}`}
         </div>
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Enabled
         </label>
       </div>
-      <p className="text-xs text-muted">Let the agent pay contributors in your own token, with its own limits and on-chain allowance.</p>
+      <p className="text-xs text-muted">
+        {isSol
+          ? "Let the agent send plain SOL from a SOL treasury you own (held as wrapped SOL), with its own limits and on-chain allowance. Minimum 0.001 SOL per payment."
+          : "Let the agent pay contributors in your own token, with its own limits and on-chain allowance."}
+      </p>
       {enabled && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Max per payment" hint={`$${symbol}`}>
+          <Field label="Max per payment" hint={label}>
             <Input inputMode="decimal" value={f.maxPerTx} onChange={(e) => setF({ ...f, maxPerTx: e.target.value })} />
           </Field>
           <Field label="Autonomous up to">
@@ -245,7 +254,7 @@ export function TokenRewardSettings({
           </Field>
         </div>
       )}
-      <Button variant="secondary" onClick={save} loading={busy} className="w-full">Save token rewards</Button>
+      <Button variant="secondary" onClick={save} loading={busy} className="w-full">Save {isSol ? "SOL payments" : "token rewards"}</Button>
       {msg && <Alert tone={msg.ok ? "accent" : "danger"}>{msg.text}</Alert>}
     </div>
   );

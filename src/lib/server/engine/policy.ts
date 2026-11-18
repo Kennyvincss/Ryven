@@ -19,6 +19,8 @@ export type AgentPolicy = {
   creatorWallet: string;
   /** Asset the limits are denominated in (USDC by default). */
   unit?: { symbol: string; decimals: number };
+  /** Smallest allowed payment (e.g. SOL: a new wallet must receive its rent minimum). */
+  minAmount?: bigint;
 };
 
 export type PolicyContext = {
@@ -81,6 +83,15 @@ export function evaluatePayment(
     detail: proposal.amount > 0n ? usd(proposal.amount) : "Amount must be greater than zero",
     effect: "reject",
   });
+  if (agent.minAmount !== undefined) {
+    add({
+      id: "min_amount",
+      label: "Above minimum",
+      passed: proposal.amount >= agent.minAmount,
+      detail: proposal.amount >= agent.minAmount ? `At least ${usd(agent.minAmount)}` : `Minimum payment is ${usd(agent.minAmount)}`,
+      effect: "reject",
+    });
+  }
   add({
     id: "category",
     label: "Approved category",

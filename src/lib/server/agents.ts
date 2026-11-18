@@ -49,6 +49,20 @@ export const TokenPolicyInput = z
   .refine((p) => p.maxPerTx <= p.dailyLimit, "Token max per payment cannot exceed the token daily limit")
   .nullable();
 
+const lamportsAmount = z
+  .string()
+  .regex(/^\d+(\.\d{1,9})?$/, "Use a SOL amount like 0.05")
+  .transform((v) => toBaseUnits(v, 9));
+
+/** Limits for SOL payments (lamports). null disables SOL payments. */
+export const SolPolicyInput = z
+  .object({ maxPerTx: lamportsAmount, autoApproveLimit: lamportsAmount, dailyLimit: lamportsAmount })
+  .refine((p) => p.maxPerTx >= 1_000_000n && p.dailyLimit > 0n, "SOL max per payment must be at least 0.001 SOL")
+  .refine((p) => p.autoApproveLimit <= p.maxPerTx, "SOL autonomous limit cannot exceed the max per payment")
+  .refine((p) => p.maxPerTx <= p.dailyLimit, "SOL max per payment cannot exceed the SOL daily limit")
+  .refine((p) => p.dailyLimit <= toBaseUnits("100", 9), "SOL daily limit is capped at 100 SOL")
+  .nullable();
+
 const solAmount = z
   .string()
   .regex(/^\d+(\.\d{1,9})?$/, "Use a SOL amount like 0.05")

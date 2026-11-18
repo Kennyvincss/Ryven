@@ -124,6 +124,12 @@ is on Solana **Mainnet**.
 6. Type an instruction in the terminal, e.g.
    *"Reward three approved community contributors with 1 USDC each."*
 
+### Sending SOL
+
+Console → **Permissions** → **SOL payments** → Enabled → set limits → Save. Then **Treasury**
+→ **SOL** → **Fund** (deposit SOL and set the agent's allowance). Ask e.g. *"Send 0.01 SOL to
+@alice"*. Recipients receive plain SOL; the minimum is 0.001 SOL per payment.
+
 ### Rewards in your own coin
 
 Console → **Permissions** → **Rewards in $YOURCOIN** → Enabled → Save. Then **Treasury** →

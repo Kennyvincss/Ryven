@@ -10,8 +10,10 @@ import { PublicKey, SendTransactionError } from "@solana/web3.js";
 import { deriveTreasuryAddress, treasurySeed, type TreasuryAsset } from "../../solana/treasury";
 import { BlockhashExpiredError, confirmByPolling } from "../../solana/confirm";
 import { db, schema, type Tx } from "../db";
-import { connectionFor, readTreasuryState, getConfirmedTransaction, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
-import { signAgentPayment } from "../signer";
+import { connectionFor, readTreasuryState, getConfirmedTransaction, solDeltaForAccount, tokenDeltaForOwner, tokenDeltaForAccount, type TreasuryState } from "../solana";
+import { signAgentPayment, signAgentSolPayment } from "../signer";
+import { ACCOUNT_SIZE, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { MIN_SOL_PAYMENT_LAMPORTS, SOL_DECIMALS } from "../../solana/sol-payment";
 import { evaluatePayment, type AgentPolicy, type PaymentProposal } from "./policy";
 import { logActivity } from "./activity";
 import { fromBaseUnits } from "../../shared/amounts";
@@ -47,7 +49,9 @@ export async function loadAgent(agentId: string, asset: TreasuryAsset = "usdc"):
   const treasury =
     asset === "token"
       ? await ensureTokenTreasury(agent)
-      : await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agentId), eq(schema.treasuries.asset, "usdc")) });
+      : asset === "sol"
+        ? await ensureSolTreasury(agent)
+        : await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agentId), eq(schema.treasuries.asset, "usdc")) });
   if (!treasury) throw new EngineError("Agent has no treasury", 409);
   return { agent, treasury };
 }
@@ -82,17 +86,42 @@ export async function ensureTokenTreasury(agent: Agent): Promise<Treasury> {
   return row;
 }
 
-export const assetLabel = (t: Pick<Treasury, "asset" | "symbol">) => (t.asset === "usdc" ? "USDC" : `$${t.symbol}`);
+/** The agent's SOL treasury: creator-owned wrapped-SOL account, created lazily. */
+export async function ensureSolTreasury(agent: Agent): Promise<Treasury> {
+  const existing = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "sol")) });
+  if (existing) return existing;
+  const address = deriveTreasuryAddress(new PublicKey(agent.creatorWallet), agent.id, "sol").toBase58();
+  await db
+    .insert(schema.treasuries)
+    .values({
+      agentId: agent.id,
+      asset: "sol",
+      address,
+      seed: treasurySeed(agent.id, "sol"),
+      ownerWallet: agent.creatorWallet,
+      mint: NATIVE_MINT.toBase58(),
+      tokenProgram: TOKEN_PROGRAM_ID.toBase58(),
+      decimals: SOL_DECIMALS,
+      symbol: "SOL",
+    })
+    .onConflictDoNothing();
+  const row = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "sol")) });
+  if (!row) throw new EngineError("Could not create SOL treasury", 500);
+  return row;
+}
+
+export const assetLabel = (t: Pick<Treasury, "asset" | "symbol">) => (t.asset === "usdc" ? "USDC" : t.asset === "sol" ? "SOL" : `$${t.symbol}`);
 export const fmtAmount = (amount: bigint, t: Pick<Treasury, "asset" | "symbol" | "decimals">) => `${fromBaseUnits(amount, t.decimals)} ${assetLabel(t)}`;
 
 export function toPolicy(agent: Agent, treasury: Treasury): AgentPolicy {
-  const isToken = treasury.asset === "token";
+  const a = treasury.asset;
   return {
     status: agent.status,
     mode: agent.mode,
-    maxPerTx: isToken ? (agent.tokenMaxPerTx ?? 0n) : agent.maxPerTx,
-    autoApproveLimit: isToken ? (agent.tokenAutoApproveLimit ?? 0n) : agent.autoApproveLimit,
-    dailyLimit: isToken ? (agent.tokenDailyLimit ?? 0n) : agent.dailyLimit,
+    maxPerTx: a === "token" ? (agent.tokenMaxPerTx ?? 0n) : a === "sol" ? (agent.solMaxPerTx ?? 0n) : agent.maxPerTx,
+    autoApproveLimit: a === "token" ? (agent.tokenAutoApproveLimit ?? 0n) : a === "sol" ? (agent.solAutoApproveLimit ?? 0n) : agent.autoApproveLimit,
+    dailyLimit: a === "token" ? (agent.tokenDailyLimit ?? 0n) : a === "sol" ? (agent.solDailyLimit ?? 0n) : agent.dailyLimit,
+    minAmount: a === "sol" ? MIN_SOL_PAYMENT_LAMPORTS : undefined,
     unit: { symbol: assetLabel(treasury), decimals: treasury.decimals },
     categories: agent.categories,
     recipientPolicy: agent.recipientPolicy,
@@ -326,19 +355,32 @@ export async function executePayment(paymentId: string): Promise<Payment> {
     const bh = await conn.getLatestBlockhash("confirmed");
     const blockhash = bh.blockhash;
     lastValidBlockHeight = bh.lastValidBlockHeight;
-    const signed = await signAgentPayment({
-      paymentId: claimed.id,
-      agentId: agent.id,
-      agentSignerPubkey: agent.signerPubkey,
-      treasury: treasury.address,
-      mint: treasury.mint,
-      recipient: claimed.recipient,
-      amount: claimed.amount,
-      recentBlockhash: blockhash,
-      tokenProgram: treasury.tokenProgram,
-      decimals: treasury.decimals,
-      network: agent.network,
-    });
+    const signed =
+      claimed.asset === "sol"
+        ? await signAgentSolPayment({
+            paymentId: claimed.id,
+            agentId: agent.id,
+            agentSignerPubkey: agent.signerPubkey,
+            treasury: treasury.address,
+            recipient: claimed.recipient,
+            lamports: claimed.amount,
+            recentBlockhash: blockhash,
+            tempRentLamports: await conn.getMinimumBalanceForRentExemption(ACCOUNT_SIZE),
+            network: agent.network,
+          })
+        : await signAgentPayment({
+            paymentId: claimed.id,
+            agentId: agent.id,
+            agentSignerPubkey: agent.signerPubkey,
+            treasury: treasury.address,
+            mint: treasury.mint,
+            recipient: claimed.recipient,
+            amount: claimed.amount,
+            recentBlockhash: blockhash,
+            tokenProgram: treasury.tokenProgram,
+            decimals: treasury.decimals,
+            network: agent.network,
+          });
     signature = signed.signature;
     raw = signed.tx.serialize();
   } catch (e) {
@@ -392,7 +434,7 @@ async function verifyAndConfirm(paymentId: string): Promise<Payment> {
   }
   if (txInfo.meta?.err) return fail(p.id, `Transaction failed on-chain: ${JSON.stringify(txInfo.meta.err)}`, agent.id, p.instructionId);
 
-  const recipientDelta = tokenDeltaForOwner(txInfo, p.recipient, p.mint);
+  const recipientDelta = p.asset === "sol" ? solDeltaForAccount(txInfo, p.recipient) : tokenDeltaForOwner(txInfo, p.recipient, p.mint);
   const treasuryDelta = tokenDeltaForAccount(txInfo, treasury.address);
   if (recipientDelta !== p.amount || treasuryDelta !== -p.amount) {
     return fail(
@@ -542,7 +584,7 @@ export async function rejectPayment(paymentId: string, approverWallet: string): 
     instructionId: p.instructionId,
     type: "approval",
     status: "failed",
-    message: `Creator rejected ${fromBaseUnits(p.amount, p.decimals)} ${p.asset === "usdc" ? "USDC" : `$${p.symbol}`} payment`,
+    message: `Creator rejected ${fromBaseUnits(p.amount, p.decimals)} ${p.asset === "usdc" ? "USDC" : p.asset === "sol" ? "SOL" : `$${p.symbol}`} payment`,
     data: { paymentId: p.id },
   });
   return row;
