@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "How Ryven works" };
+export const metadata: Metadata = { title: "How Ryyven works" };
 
 const SECTIONS: { title: string; body: string[] }[] = [
   {
@@ -28,7 +28,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "4. Talk to your agent",
     body: [
       "Type instructions in the console terminal, for example: “Reward three approved contributors with 1 USDC each”, “Send 0.01 SOL to @alice”, “What's our market cap?”, “Analyse my wallet and give me ideas” or “Alert me if SOL drops below $150”.",
-      "Every payment is checked by Ryven's rule engine before it's signed: limits, recipients, categories and the platform's emergency switch. Payments above your auto-approve limit wait for you in the approval queue.",
+      "Every payment is checked by Ryyven's rule engine before it's signed: limits, recipients, categories and the platform's emergency switch. Payments above your auto-approve limit wait for you in the approval queue.",
     ],
   },
   {
@@ -49,9 +49,9 @@ const SECTIONS: { title: string; body: string[] }[] = [
 export default function Page() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight">How Ryven works</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">How Ryyven works</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-muted">
-        Ryven lets you launch a Solana coin and give it an AI agent that can pay contributors from a treasury you control, within limits you set.
+        Ryyven lets you launch a Solana coin and give it an AI agent that can pay contributors from a treasury you control, within limits you set.
         Everything runs on Solana with real funds.
       </p>
       <div className="mt-8 space-y-8">

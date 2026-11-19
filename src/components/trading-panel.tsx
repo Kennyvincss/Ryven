@@ -365,7 +365,7 @@ export function TradingSettings({
           </div>
           <p className="text-text/80">
             The agent trades real SOL without asking you. Memecoins can go to zero. Only fund its trading wallet with an amount you&apos;re fine losing.
-            Its key is held (encrypted) by this Ryven server, so a compromised server could misuse whatever is in that wallet. Limits and the
+            Its key is held (encrypted) by this Ryyven server, so a compromised server could misuse whatever is in that wallet. Limits and the
             simulation check cap each trade; &quot;Withdraw everything to me&quot; is your exit.
           </p>
           <label className="flex items-start gap-2">

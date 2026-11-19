@@ -1,6 +1,6 @@
 "use client";
 /**
- * "Before you continue" notice in the Ryven style (same language as the sign-in screen):
+ * "Before you continue" notice in the Ryyven style (same language as the sign-in screen):
  * glass card, Volt icon chip, mono eyebrow, numbered timeline, and a Volt confirm toggle.
  */
 import { Check, ShieldCheck } from "lucide-react";

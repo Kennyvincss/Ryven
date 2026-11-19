@@ -8,7 +8,7 @@ import { Providers } from "@/components/providers";
 import { Footer, Navbar } from "@/components/site-chrome";
 
 export const metadata: Metadata = {
-  title: { default: "Ryven: Memecoin Terminal · AI", template: "%s · Ryven" },
+  title: { default: "Ryyven: Memecoin Terminal · AI", template: "%s · Ryyven" },
   description: "Launch tokens, deploy autonomous AI agents with their own treasuries, and run self-operating economies on Solana.",
 };
 

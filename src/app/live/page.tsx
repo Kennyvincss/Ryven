@@ -253,7 +253,7 @@ export default function LivePage() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-3 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent">
-            <span className="text-faint">Ryven /</span> Live terminal
+            <span className="text-faint">Ryyven /</span> Live terminal
             <span className="ml-1 inline-flex items-center gap-1.5 text-accent">
               <span className="animate-pulse-dot size-1.5 rounded-full bg-accent" />
             </span>
@@ -313,7 +313,7 @@ export default function LivePage() {
         ))}
       </div>
       <p className="mt-3 text-[11px] text-faint">
-        Up to 30 coins per column (the data source&apos;s limit); filters search the whole market. Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryven checks and simulates every transaction before you sign. Memecoins are extremely risky
+        Up to 30 coins per column (the data source&apos;s limit); filters search the whole market. Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryyven checks and simulates every transaction before you sign. Memecoins are extremely risky
         and many go to zero.
       </p>
     </div>

@@ -28,11 +28,11 @@ export function errorResponse(e: unknown) {
   if (code === "42703" || code === "42P01" || code === "42704") {
     // undefined column / table / type: the database is older than the code.
     console.error("Database schema is out of date: run npm run db:migrate.", e);
-    return json({ error: DEV ? 'The database is out of date. Stop the app, run "npm run db:migrate", then start it again.' : "Ryven is being updated. Please try again in a few minutes." }, { status: 503 });
+    return json({ error: DEV ? 'The database is out of date. Stop the app, run "npm run db:migrate", then start it again.' : "Ryyven is being updated. Please try again in a few minutes." }, { status: 503 });
   }
   if (code === "ECONNREFUSED" || code === "28P01" || code === "ENOTFOUND") {
     console.error("Cannot connect to the database: check DATABASE_URL.", e);
-    return json({ error: DEV ? 'Cannot connect to the database. Check DATABASE_URL in .env (run "npm run db:migrate" to test it).' : "Ryven is temporarily unavailable. Please try again in a few minutes." }, { status: 503 });
+    return json({ error: DEV ? 'Cannot connect to the database. Check DATABASE_URL in .env (run "npm run db:migrate" to test it).' : "Ryyven is temporarily unavailable. Please try again in a few minutes." }, { status: 503 });
   }
   console.error(e);
   return json({ error: "Something went wrong. Please try again." }, { status: 500 });

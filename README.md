@@ -1,8 +1,8 @@
-# RYVEN
+# RYYVEN
 
 **Launch Tokens. Deploy Agents. Automate Economies.**
 
-Ryven is a Solana token launchpad where every token can deploy an **autonomous AI
+Ryyven is a Solana token launchpad where every token can deploy an **autonomous AI
 agent with its own treasury, spending limits and the ability to execute real USDC
 payments**, without ever handing an LLM (or the server) unrestricted access to funds.
 
@@ -13,7 +13,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 | Layer | Enforces |
 |---|---|
 | **Solana (SPL Token)** | The agent's key is only a *delegate* over a treasury **the creator owns**. The chain refuses any transfer above the allowance. The creator can revoke it or withdraw at any time. |
-| **Ryven policy engine** (deterministic TypeScript) | Max per payment, autonomous-approval threshold, daily limit, recipient allowlist, categories, duplicate detection, pause / platform kill switch, idempotency |
+| **Ryyven policy engine** (deterministic TypeScript) | Max per payment, autonomous-approval threshold, daily limit, recipient allowlist, categories, duplicate detection, pause / platform kill switch, idempotency |
 | **Claude (AI)** | Interprets instructions and *proposes* payments through tools. Has no keys and no tool to change limits, approve or unpause. |
 
 ## What works today
@@ -38,7 +38,7 @@ payments**, without ever handing an LLM (or the server) unrestricted access to f
 - **Price alerts**: ask the agent to alert you when a token's price or market cap crosses a level or moves X% (checked every minute; console banner + browser notification)
 - **AI agents for pump.fun coins on mainnet**, paying in real USDC (explicit real-money confirmation required)
 
-**Not yet implemented** (clearly marked in the UI): bonding-curve trading for Ryven coins
+**Not yet implemented** (clearly marked in the UI): bonding-curve trading for Ryyven coins
 (program source in `onchain/`, needs to be deployed), recurring/scheduled campaigns, DEX migration.
 
 ## Quick start

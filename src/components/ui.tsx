@@ -248,7 +248,7 @@ export function PageHeader({ title, subtitle, right, eyebrow }: { title: React.R
       <div className="min-w-0">
         {eyebrow && (
           <div className="mb-3 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent">
-            <span className="text-faint">Ryven /</span> {eyebrow}
+            <span className="text-faint">Ryyven /</span> {eyebrow}
           </div>
         )}
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>

@@ -53,7 +53,7 @@ function TokensInner() {
 export default function TokensPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader eyebrow="Launchpad" title="Explore tokens" subtitle="Every token launched on Ryven, verified on Solana before it's listed." right={<Button href="/launch">Launch a token</Button>} />
+      <PageHeader eyebrow="Launchpad" title="Explore tokens" subtitle="Every token launched on Ryyven, verified on Solana before it's listed." right={<Button href="/launch">Launch a token</Button>} />
       <Suspense fallback={<Spinner />}>
         <TokensInner />
       </Suspense>

@@ -26,7 +26,7 @@ export const POST = handler(async (req: Request) => {
   if (APP_NETWORK === "mainnet" && !serverEnv.pinataJwt && /localhost|127\.0\.0\.1/.test(publicConfig.appUrl)) {
     throw new EngineError(
       process.env.NODE_ENV !== "production"
-        ? "The coin's image and metadata must be publicly reachable. Set PINATA_JWT (free at app.pinata.cloud) or deploy Ryven to a public URL (NEXT_PUBLIC_APP_URL)."
+        ? "The coin's image and metadata must be publicly reachable. Set PINATA_JWT (free at app.pinata.cloud) or deploy Ryyven to a public URL (NEXT_PUBLIC_APP_URL)."
         : "Coin images can't be uploaded right now. Please try again later.",
       503,
     );
@@ -45,7 +45,7 @@ export const POST = handler(async (req: Request) => {
     external_url: b.website || undefined,
     extensions: { website: b.website || undefined, twitter: b.twitter || undefined, telegram: b.telegram || undefined },
     properties: { files: [{ uri: image.uri, type: m[1] }], category: "image" },
-    createdOn: "Ryven",
+    createdOn: "Ryyven",
   };
   const meta = await storeBlob(Buffer.from(JSON.stringify(metadata)), "application/json", wallet, `${b.symbol}.json`);
   if (meta.uri.length > TOKEN_LIMITS.uri) throw new EngineError("Metadata URI too long; set a shorter NEXT_PUBLIC_APP_URL");

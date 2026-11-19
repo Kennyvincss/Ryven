@@ -97,7 +97,7 @@ export const tokens = pgTable(
     decimals: integer("decimals").notNull(),
     totalSupply: amount("total_supply").notNull(),
     launchMode: launchModeEnum("launch_mode").notNull(),
-    /** Cluster the mint lives on. Ryven launches + agents: devnet. pump.fun launches: mainnet. */
+    /** Cluster the mint lives on. Ryyven launches + agents: devnet. pump.fun launches: mainnet. */
     network: networkEnum("network").notNull().default("devnet"),
     launchStatus: launchStatusEnum("launch_status").notNull().default("pending"),
     launchSignature: text("launch_signature").notNull(),

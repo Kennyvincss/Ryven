@@ -1,7 +1,7 @@
 import "server-only";
 /**
  * Token swaps on Solana mainnet through Jupiter (aggregator). Jupiter builds a v0
- * transaction for the swapping wallet; Ryven validates it (single signer, top-level
+ * transaction for the swapping wallet; Ryyven validates it (single signer, top-level
  * program allowlist) and simulates it to measure exactly how much of the input token and
  * of SOL would leave the wallet before anything is signed.
  * Shape verified against lite-api.jup.ag (2026-11): ComputeBudget, Associated Token,

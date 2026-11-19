@@ -44,7 +44,7 @@ function Step({ state, icon, title, text, offset }: { state: StepState; icon: Re
   );
 }
 
-export function SignInPanel({ title = "Sign in to Ryven", subtitle }: { title?: string; subtitle?: string }) {
+export function SignInPanel({ title = "Sign in to Ryyven", subtitle }: { title?: string; subtitle?: string }) {
   const { wallets, select, wallet, publicKey, connected, connecting, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
   const { authed, signIn, signingIn, error } = useSession();
@@ -83,14 +83,14 @@ export function SignInPanel({ title = "Sign in to Ryven", subtitle }: { title?: 
           <div className="rounded-2xl bg-bg/70 px-4 py-3 backdrop-blur-sm">
             <RyvenLogo size={34} tagline />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-text">Get started with Ryven</h2>
+          <h2 className="mt-6 text-3xl font-bold text-text">Get started with Ryyven</h2>
           <p className="mt-2 max-w-xs text-sm text-text/75">Three quick steps. No email, no password: your wallet is your account.</p>
         </div>
         <ol className="relative mx-auto mt-10 max-w-sm space-y-5">
           <span className="absolute bottom-6 left-[8.5px] top-6 w-px bg-white/15" aria-hidden />
           <Step state={step1} icon={<Wallet className="size-4 text-accent" />} title="Connect your wallet" text="Phantom, Solflare or any Solana wallet." />
           <Step state={step2} icon={<ShieldCheck className="size-4 text-accent" />} title="Sign in, free" text="Sign a message to prove it's you. No transaction, no fees." offset />
-          <Step state={step3} icon={<Rocket className="size-4 text-accent" />} title="Start trading with Ryven" text="Trade live coins, launch your own and deploy your AI agent." />
+          <Step state={step3} icon={<Rocket className="size-4 text-accent" />} title="Start trading with Ryyven" text="Trade live coins, launch your own and deploy your AI agent." />
         </ol>
       </section>
 

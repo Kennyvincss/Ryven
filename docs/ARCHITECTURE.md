@@ -1,4 +1,4 @@
-# RYVEN: Architecture
+# RYYVEN: Architecture
 
 > **Launch Tokens. Deploy Agents. Automate Economies.**
 > Category: Agentic Payments & AI · Chain: **Solana mainnet** · Payment asset: USDC (SPL)
@@ -6,7 +6,7 @@
 > Network: the app runs on mainnet by default (`APP_NETWORK`). A hidden test mode
 > (`NEXT_PUBLIC_SOLANA_CLUSTER=devnet`) exists only for the automated end-to-end test.
 
-Ryven is a token launchpad where every token can deploy an AI agent with its own
+Ryyven is a token launchpad where every token can deploy an AI agent with its own
 treasury, spending limits and the ability to execute real USDC payments on Solana,
 without ever giving the AI (or the server) unrestricted access to anyone's funds.
 
@@ -76,7 +76,7 @@ This document covers, in order:
 ## 2. Project folder structure
 
 ```
-Ryven/
+Ryyven/
 ├─ docs/                    ARCHITECTURE.md, SETUP.md, DEMO.md
 ├─ drizzle/                 generated SQL migrations
 ├─ onchain/                 Anchor workspace (bonding curve program)
@@ -287,7 +287,7 @@ Buy/sell for visitors (`/api/swap/quote`, `/api/swap/build`, `user-swap.ts`) reu
 agent swap safety: fresh Jupiter quote → transaction built for the user's wallet (priority
 fee capped at 0.001 SOL) → validation (one signer = the user, known programs, no top-level
 transfers to anyone else) → mainnet simulation (no more than the input + fees may leave the
-wallet). Ryven never signs; the wallet does. Confirmation is by HTTP polling through the RPC
+wallet). Ryyven never signs; the wallet does. Confirmation is by HTTP polling through the RPC
 relay.
 
 Column filters (`shared/live-filters.ts`, unit-tested) are sent to Jupiter where it supports

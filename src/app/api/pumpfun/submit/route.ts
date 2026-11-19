@@ -27,7 +27,7 @@ const Body = z.object({
 
 /**
  * Re-validates the wallet-signed transaction, sends it to Solana MAINNET, waits for
- * confirmation, checks the mint exists on-chain, then lists the coin on Ryven.
+ * confirmation, checks the mint exists on-chain, then lists the coin on Ryyven.
  */
 export const POST = handler(async (req: Request) => {
   requirePumpFunEnabled();

@@ -263,7 +263,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                   <>Costs roughly 0.005 SOL in fees and rent. It can&apos;t be undone.</>
                 ),
                 mode === "pumpfun" ? (
-                  <>The coin is created through a third-party launch service and is tradable right away. Ryven checks the transaction before you sign it.</>
+                  <>The coin is created through a third-party launch service and is tradable right away. Ryyven checks the transaction before you sign it.</>
                 ) : (
                   <>The full supply goes to your wallet. It becomes tradable once liquidity is added on an exchange.</>
                 ),
@@ -381,7 +381,7 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
           <PolicyForm value={policy} onChange={setPolicy} unit={unit} />
         </div>
         <Alert tone="info" title="How the agent's wallet works">
-          Ryven generates a dedicated signing key for this agent and stores it encrypted on the server. It holds no funds. In the next step you
+          Ryyven generates a dedicated signing key for this agent and stores it encrypted on the server. It holds no funds. In the next step you
           give it a capped on-chain allowance over a treasury you own. The AI model never sees the key.
         </Alert>
         {isMainnet && (
@@ -391,7 +391,7 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
             items={[
               <>Its treasury is a {unit} account you own. The agent can only spend the allowance you give it, within the limits above.</>,
               <>Start small. You can pause the agent or revoke its allowance at any time.</>,
-              <>Ryven pays the network fees for its payments.</>,
+              <>Ryyven pays the network fees for its payments.</>,
             ]}
             checked={ack}
             onChange={setAck}
@@ -423,7 +423,7 @@ function PumpFunSuccess({ token }: { token: Token }) {
           Launch transaction <ExternalLink className="size-3.5" />
         </Button>
         <Button variant="secondary" href={`/tokens/${token.mint}`}>
-          Ryven page
+          Ryyven page
         </Button>
       </div>
       <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). It pays in real SOL (or USDC if you choose).</p>

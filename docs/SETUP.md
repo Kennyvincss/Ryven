@@ -1,8 +1,8 @@
-# Ryven setup guide (beginner friendly)
+# Ryyven setup guide (beginner friendly)
 
 This guide assumes no backend or blockchain experience. Follow it top to bottom.
 
-> **Ryven runs on Solana mainnet.** Launching coins, funding agents and agent payments use
+> **Ryyven runs on Solana mainnet.** Launching coins, funding agents and agent payments use
 > **real SOL and real USDC** and can't be undone. Start with small amounts.
 
 ---
@@ -26,7 +26,7 @@ git clone https://github.com/kennyvincss/Ryven.git
 ```
 
 ```bash
-cd Ryven
+cd Ryyven
 ```
 
 ```bash
@@ -81,7 +81,7 @@ copy your **mainnet RPC URL** and set it in `.env`:
 SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=...
 ```
 
-This URL stays on your server: browsers talk to Solana through Ryven's `/api/rpc` relay, so
+This URL stays on your server: browsers talk to Solana through Ryyven's `/api/rpc` relay, so
 visitors never see your API key.
 
 ### 2e. IPFS for coin images (Pinata)
@@ -119,8 +119,8 @@ is on Solana **Mainnet**.
 ## 4. Use it
 
 1. **Connect wallet** → click your address → **Sign in** (free, no transaction).
-2. **Launch** → fill in your coin → choose **Ryven · fixed supply** (or **pump.fun**) →
-   approve in Phantom (~0.005 SOL for Ryven, ~0.02–0.03 SOL for pump.fun).
+2. **Launch** → fill in your coin → choose **Ryyven · fixed supply** (or **pump.fun**) →
+   approve in Phantom (~0.005 SOL for Ryyven, ~0.02–0.03 SOL for pump.fun).
 3. **Deploy agent** → set limits → tick the real-money box → **Deploy agent**.
 4. **Fund the treasury** with USDC and set the agent's allowance (start small, e.g. 5–10).
 5. Console → **Contributors** → add wallets the agent may pay.
@@ -153,7 +153,7 @@ your trading allowlist. A swap's value in SOL counts toward your per-trade and d
 Every trade is checked before signing: your limits, the coin allowlist, the programs it
 calls, and a mainnet simulation that refuses it if the wallet would lose more than the trade
 amount plus 10% slippage and fees. In autonomous mode the agent's key is held (encrypted) by
-your Ryven server, so a compromised server could misuse whatever is in that trading wallet.
+your Ryyven server, so a compromised server could misuse whatever is in that trading wallet.
 
 ### Wallet analysis and the daily brief
 
@@ -163,7 +163,7 @@ coin too big, too little SOL for fees, coins with tiny liquidity, unknown airdro
 suggests a few ideas. Ideas only: it never trades unless you ask.
 
 For a **daily brief**: Console → **Wallet brief** → Daily brief **On** → pick a time → Save.
-**Generate now** makes one immediately. Briefs are generated while your Ryven server is
+**Generate now** makes one immediately. Briefs are generated while your Ryyven server is
 running (`npm run dev` or `npm start`). On Vercel, set `CRON_SECRET` and add a cron job that
 calls `/api/cron/briefs` hourly (see `.env.example`).
 
@@ -177,9 +177,9 @@ browser, and accept shorthand like `10k` or `1.5m`. The data source returns at m
 per column. Click a
 coin for its page: live chart (1s to 1d, market cap or price), live trades, safety info and
 a **Buy / Sell** panel. The ⚡ button on each card buys instantly with your **Quick buy**
-amount. pump.fun coins you launch on Ryven get the same chart and Buy/Sell on their token page.
+amount. pump.fun coins you launch on Ryyven get the same chart and Buy/Sell on their token page.
 
-Trades use your own wallet and real SOL: Ryven gets the best route from Jupiter, checks the
+Trades use your own wallet and real SOL: Ryyven gets the best route from Jupiter, checks the
 transaction (it can only swap your own funds) and simulates it before your wallet asks you
 to approve. Nothing to configure: no new environment variables.
 
@@ -188,7 +188,7 @@ to approve. Nothing to configure: no new environment variables.
 Ask the agent, e.g. *"Alert me if SOL drops below $150"*, *"Tell me when our market cap hits
 $1M"* or *"Alert me if &lt;coin&gt; falls 20%"*. Works for price or market cap, above/below a
 level or a % move from now, on any mainnet token (up to 20 active). Alerts are checked every
-minute while your Ryven server runs. When one hits you see it in the console (banner,
+minute while your Ryyven server runs. When one hits you see it in the console (banner,
 **Alerts** tab, activity feed); click **Enable browser notifications** in the Alerts tab to
 also get a desktop notification while the console is open. Alerts never trade. On Vercel,
 call `/api/cron/alerts` from a cron job with `CRON_SECRET` (see `.env.example`).
@@ -204,7 +204,7 @@ Once connected, Vercel redeploys automatically every time `main` changes.
 Run `npm run db:migrate` again from your computer after every `git pull` that adds a migration.
 
 1. **Import the project.** Go to https://vercel.com/new → sign in with GitHub → find
-   **Ryven** → **Import**. Leave the framework (Next.js) and build settings as they are.
+   **Ryyven** → **Import**. Leave the framework (Next.js) and build settings as they are.
    Don't click Deploy yet.
 2. **Add the environment variables.** In the import screen open **Environment Variables**
    and add each line below. Copy the values from your local `.env` (open it in VS Code), except

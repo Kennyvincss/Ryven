@@ -42,14 +42,14 @@ export async function createNonce(wallet: string, origin: string) {
     try {
       return new URL(origin).host;
     } catch {
-      return "ryven";
+      return "ryyven";
     }
   })();
   const message = [
     `${host} wants you to sign in with your Solana account:`,
     wallet,
     "",
-    "Sign in to Ryven. This only proves you own this wallet. It does not send a transaction or cost any fees.",
+    "Sign in to Ryyven. This only proves you own this wallet. It does not send a transaction or cost any fees.",
     "",
     `URI: ${origin}`,
     `Nonce: ${nonce}`,

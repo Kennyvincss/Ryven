@@ -135,7 +135,7 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <div className="mb-5 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Launched on Ryven</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Launched on Ryyven</h2>
             <p className="mt-1 text-sm text-muted">Every coin here was verified on-chain before it was listed.</p>
           </div>
           <Link href="/tokens" className="hidden items-center gap-1 text-sm text-muted hover:text-text sm:flex">
@@ -208,7 +208,7 @@ export default function Home() {
       <section className="border-y border-white/[0.06] bg-white/[0.015]">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <div className="max-w-2xl">
-            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent"><span className="text-faint">Ryven /</span> How it works</div>
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent"><span className="text-faint">Ryyven /</span> How it works</div>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">From token to self-operating economy in five steps</h2>
           </div>
           <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -230,11 +230,11 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div className="grid items-start gap-10 lg:grid-cols-2">
           <div>
-            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent"><span className="text-faint">Ryven /</span> Why agents need wallets</div>
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent"><span className="text-faint">Ryyven /</span> Why agents need wallets</div>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Autonomy without handing over the keys</h2>
             <p className="mt-4 text-[15px] leading-relaxed text-muted">
               An agent that can only talk is a chatbot. An agent that can pay rewards, settle bounties and run campaigns by itself is an
-              economic actor. Ryven gives every agent a wallet, and boxes its spending in at three independent layers.
+              economic actor. Ryyven gives every agent a wallet, and boxes its spending in at three independent layers.
             </p>
           </div>
           <div className="grid gap-3">

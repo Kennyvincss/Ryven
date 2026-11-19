@@ -115,7 +115,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "propose_payments",
     description:
-      "Submit payments to the Ryven payment engine, in USDC (asset \"usdc\"), SOL (asset \"sol\", only if the creator enabled SOL payments; minimum 0.001 SOL) or this agent's own token (asset \"token\", only if the creator enabled token rewards). The engine (not you) checks every payment against the creator's policy for that asset: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount is a decimal string like \"5\" or \"2.5\" in units of the chosen asset.",
+      "Submit payments to the Ryyven payment engine, in USDC (asset \"usdc\"), SOL (asset \"sol\", only if the creator enabled SOL payments; minimum 0.001 SOL) or this agent's own token (asset \"token\", only if the creator enabled token rewards). The engine (not you) checks every payment against the creator's policy for that asset: categories, recipient allowlist, max per transaction, daily limit, on-chain balance & allowance, duplicates. Payments that pass are signed and sent on Solana; others are queued for creator approval or rejected. Results include the real status and transaction signature. Use only wallet addresses that came from list_contributors or that the creator gave you explicitly. Never invent addresses. Up to 10 payments per call. amount is a decimal string like \"5\" or \"2.5\" in units of the chosen asset.",
     input_schema: {
       type: "object",
       properties: {
@@ -215,7 +215,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "propose_trade",
     description:
-      "Buy or sell a pump.fun coin on Solana MAINNET (real SOL). Only coins on the creator's trading allowlist. The Ryven trading engine (not you) checks the creator's limits, simulates the trade and refuses anything that would spend more than allowed. In proposal mode the trade waits for the creator to sign it; in autonomous mode it executes from your trading wallet. buy: amount is SOL to spend, e.g. \"0.05\". sell: amount is the percent of holdings to sell, e.g. \"50\". Only trade when the creator asked for it or their standing instructions say so.",
+      "Buy or sell a pump.fun coin on Solana MAINNET (real SOL). Only coins on the creator's trading allowlist. The Ryyven trading engine (not you) checks the creator's limits, simulates the trade and refuses anything that would spend more than allowed. In proposal mode the trade waits for the creator to sign it; in autonomous mode it executes from your trading wallet. buy: amount is SOL to spend, e.g. \"0.05\". sell: amount is the percent of holdings to sell, e.g. \"50\". Only trade when the creator asked for it or their standing instructions say so.",
     input_schema: {
       type: "object",
       properties: {
@@ -232,7 +232,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "swap_tokens",
     description:
-      "Swap one token for another on Solana MAINNET through Jupiter (best route across DEXes, real funds). Tokens: \"SOL\", \"USDC\", \"USDT\", \"own\" (this agent's coin) or a mint address on the creator's trading allowlist. amount is in INPUT token units, e.g. \"0.1\" SOL or \"25\" USDC. The Ryven trading engine (not you) values the swap in SOL, checks the creator's per-trade and daily limits, gets a quote, validates the transaction and simulates it, refusing anything that would spend more than quoted. Proposal mode: the creator gets a popup to sign it. Autonomous mode: it runs from your trading wallet. Only swap when the creator asked for it or their standing instructions say so.",
+      "Swap one token for another on Solana MAINNET through Jupiter (best route across DEXes, real funds). Tokens: \"SOL\", \"USDC\", \"USDT\", \"own\" (this agent's coin) or a mint address on the creator's trading allowlist. amount is in INPUT token units, e.g. \"0.1\" SOL or \"25\" USDC. The Ryyven trading engine (not you) values the swap in SOL, checks the creator's per-trade and daily limits, gets a quote, validates the transaction and simulates it, refusing anything that would spend more than quoted. Proposal mode: the creator gets a popup to sign it. Autonomous mode: it runs from your trading wallet. Only swap when the creator asked for it or their standing instructions say so.",
     input_schema: {
       type: "object",
       properties: {
@@ -532,7 +532,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
           market:
             token.launchMode === "pumpfun"
               ? "Trades on its bonding curve (or a DEX pool after graduating)."
-              : "No Ryven market: fixed-supply token with no bonding curve. It only trades if someone creates a DEX pool for it.",
+              : "No Ryyven market: fixed-supply token with no bonding curve. It only trades if someone creates a DEX pool for it.",
         }),
       };
     }
@@ -625,7 +625,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       try {
         const alert = await createAlert({ agentId: agent.id, token, metric: p.metric, condition: p.condition, value: Number(p.value), note: p.note });
         ctx.emit({ type: "status", status: "completed", message: `Alert set: ${describeAlert(alert)}` });
-        return { content: JSON.stringify({ ...alertView(alert), checked: "every minute while the Ryven server is running" }) };
+        return { content: JSON.stringify({ ...alertView(alert), checked: "every minute while the Ryyven server is running" }) };
       } catch (e) {
         if (e instanceof EngineError) return { content: e.message, isError: true };
         throw e;
@@ -756,7 +756,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
 }
 
 function systemPrompt(agent: typeof schema.agents.$inferSelect, token: { name: string; symbol: string; mint: string }) {
-  return `You are ${agent.name}, the autonomous treasury agent for the token $${token.symbol} (${token.name}, mint ${token.mint}) on the Ryven platform (Solana ${agent.network}${agent.network === "mainnet" ? ": payments move REAL money" : ""}).
+  return `You are ${agent.name}, the autonomous treasury agent for the token $${token.symbol} (${token.name}, mint ${token.mint}) on the Ryyven platform (Solana ${agent.network}${agent.network === "mainnet" ? ": payments move REAL money" : ""}).
 
 ## Identity
 Description: ${agent.description || "(none)"}
@@ -766,11 +766,11 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 
 ## How you operate
 - You talk with the token creator through a terminal. Interpret their instructions, break them into steps, check your budget, and act with your tools.
-- You pay from treasuries the creator owns. You cannot sign transactions yourself: you submit proposals with propose_payments and the Ryven payment engine enforces the creator's policy (limits, allowlist, categories, balance, duplicates) and executes what is permitted on Solana.
+- You pay from treasuries the creator owns. You cannot sign transactions yourself: you submit proposals with propose_payments and the Ryyven payment engine enforces the creator's policy (limits, allowlist, categories, balance, duplicates) and executes what is permitted on Solana.
 - Only pay wallets that come from list_contributors, or that the creator explicitly gave you in this conversation. Never invent or guess wallet addresses. When asked for "the most active" contributors, rank by activity_score.
 - Check get_treasury_status before planning payments, and keep the batch within the remaining daily budget and per-transaction maximum. If the request exceeds the limits, explain the conflict and propose the closest compliant plan instead of submitting payments that will be rejected.
 - Report what actually happened, using the engine's results: say "confirmed on-chain" only for status "confirmed", "awaiting approval" for "awaiting_approval", and give the reason for rejections. Never claim a payment happened if the engine did not confirm it.
-- You cannot change your own limits, approve payments, or resume after a pause. If asked, explain that only the creator can do that from the Ryven console.
+- You cannot change your own limits, approve payments, or resume after a pause. If asked, explain that only the creator can do that from the Ryyven console.
 - Recurring/scheduled payments are not supported yet: for "every day" requests, do today's run and say the creator must re-issue the instruction for future days.
 - If asked to stop all payments, call pause_agent.
 - For buys, sells, traders or recent trades use get_trading_activity (windows: 5m, 1h, 6h, 24h; for other windows give the nearest ones and say so).

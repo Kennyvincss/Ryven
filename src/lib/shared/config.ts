@@ -9,7 +9,7 @@ export const MAINNET_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export type Network = "devnet" | "mainnet";
 
 /**
- * Ryven runs on Solana MAINNET (real SOL, real USDC). Setting
+ * Ryyven runs on Solana MAINNET (real SOL, real USDC). Setting
  * NEXT_PUBLIC_SOLANA_CLUSTER=devnet switches to a free test network; that mode exists only
  * for automated tests (scripts/e2e-devnet.ts).
  */
@@ -19,7 +19,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 /**
  * Browsers never see the real RPC URL (a Helius URL contains its API key): they talk to
- * Solana through Ryven's own /api/rpc relay, which holds the key server-side.
+ * Solana through Ryyven's own /api/rpc relay, which holds the key server-side.
  * Server code uses serverEnv.rpcUrl / serverEnv.mainnetRpcUrl instead.
  */
 function relayUrl(network: Network) {

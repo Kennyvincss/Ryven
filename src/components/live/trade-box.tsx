@@ -12,7 +12,7 @@ const BUY_PRESETS = ["0.01", "0.05", "0.1", "0.5", "1"];
 const SELL_PRESETS = [25, 50, 75, 100];
 const SLIPPAGES = [100, 500, 1000, 2000];
 
-/** Buy / sell any Solana token from the connected wallet (Jupiter route, checked + simulated by Ryven). */
+/** Buy / sell any Solana token from the connected wallet (Jupiter route, checked + simulated by Ryyven). */
 export function TradeBox({ mint, symbol, decimals: knownDecimals }: { mint: string; symbol: string; decimals?: number | null }) {
   const { setVisible } = useWalletModal();
   const conn = useNetworkConnection("mainnet");
@@ -230,7 +230,7 @@ export function TradeBox({ mint, symbol, decimals: knownDecimals }: { mint: stri
         </Alert>
       )}
       <p className="text-[11px] leading-relaxed text-faint">
-        Real SOL on Solana. Ryven checks every transaction before your wallet signs it: it can only swap your own funds, and a simulation
+        Real SOL on Solana. Ryyven checks every transaction before your wallet signs it: it can only swap your own funds, and a simulation
         must show you won&apos;t lose more than the amount you entered plus fees. Memecoins are extremely risky.
       </p>
     </div>

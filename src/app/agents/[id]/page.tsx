@@ -98,7 +98,7 @@ export default function AgentProfile() {
             </div>
           </Card>
           <Card>
-            <CardHeader title="Public spending policy" subtitle="Enforced by the Ryven engine and Solana" icon={<ShieldCheck className="size-4" />} />
+            <CardHeader title="Public spending policy" subtitle="Enforced by the Ryyven engine and Solana" icon={<ShieldCheck className="size-4" />} />
             <dl className="grid grid-cols-2 gap-4 p-5 text-sm">
               <div><dt className="text-xs text-faint">Max per payment</dt><dd className="font-mono">{a.policy.maxPerTx}</dd></div>
               <div><dt className="text-xs text-faint">Daily limit</dt><dd className="font-mono">{a.policy.dailyLimit}</dd></div>

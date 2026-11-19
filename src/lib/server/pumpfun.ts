@@ -3,7 +3,7 @@ import "server-only";
  * pump.fun launches through PumpPortal's Local Transaction API
  * (https://pumpportal.fun/creation). PumpPortal builds an unsigned v0 transaction; the
  * creator signs it in their own wallet. Because a third party builds a transaction the
- * user will sign, Ryven validates it strictly before showing it and again before sending.
+ * user will sign, Ryyven validates it strictly before showing it and again before sending.
  */
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { mainnetConnection } from "./solana";

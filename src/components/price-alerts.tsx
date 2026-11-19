@@ -151,7 +151,7 @@ export function PriceAlertsPanel({ agentId }: { agentId: string }) {
           </div>
           <p className="mt-1 max-w-prose text-xs text-muted">
             Ask the agent, e.g. “alert me if SOL drops below $150”, “tell me when our market cap hits $1M” or “alert me if &lt;coin&gt; falls 20%”.
-            Checked every minute while your Ryven server runs. Alerts only notify; they never trade.
+            Checked every minute while your Ryyven server runs. Alerts only notify; they never trade.
           </p>
         </div>
         {perm === "default" && (

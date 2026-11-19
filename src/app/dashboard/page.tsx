@@ -137,7 +137,7 @@ function Inner() {
 export default function Dashboard() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <PageHeader eyebrow="Dashboard" title="Your Ryven" subtitle="Balances and history are read directly from Solana. Nothing here is simulated." />
+      <PageHeader eyebrow="Dashboard" title="Your Ryyven" subtitle="Balances and history are read directly from Solana. Nothing here is simulated." />
       <AuthGate>
         <Inner />
       </AuthGate>

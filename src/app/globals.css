@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Ryven brand: Void background, Volt accent */
+  /* Ryyven brand: Void background, Volt accent */
   --color-bg: #0a0c0f;
   --color-panel: #0f1216;
   --color-panel-2: #151920;

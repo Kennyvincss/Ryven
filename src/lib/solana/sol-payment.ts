@@ -8,7 +8,7 @@
  *   2. TransferChecked(treasury -> temp, amount) signed by the agent as DELEGATE (cap enforced by Solana)
  *   3. CloseAccount(temp -> fee payer): unwraps; fee payer gets amount + its rent back
  *   4. SystemProgram.transfer(fee payer -> recipient, amount): recipient receives plain SOL
- *   5. Memo "ryven:pay:<paymentId>"
+ *   5. Memo "ryyven:pay:<paymentId>"
  * The fee payer ends up exactly where it started (minus the network fee).
  */
 import {

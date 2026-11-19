@@ -1,6 +1,6 @@
 import "server-only";
 /**
- * Buy / sell / swap for any visitor's own wallet (Live terminal and token pages). Ryven never
+ * Buy / sell / swap for any visitor's own wallet (Live terminal and token pages). Ryyven never
  * signs or holds anything here: it gets a Jupiter route, builds the transaction for the
  * user's wallet, checks it (single signer = the user, known programs only, no transfers to
  * anyone else) and simulates it on mainnet so the wallet can't lose more than the quoted

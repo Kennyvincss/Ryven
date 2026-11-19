@@ -13,7 +13,7 @@ export type SwapArgs = { input: string; output: string; amount: bigint; slippage
 const decode = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 /**
- * Buy / sell / swap from the connected wallet on mainnet. Ryven builds and checks the
+ * Buy / sell / swap from the connected wallet on mainnet. Ryyven builds and checks the
  * transaction (it must only move the user's own funds) and simulates it; the user's wallet
  * shows it and signs. Returns the confirmed signature.
  */

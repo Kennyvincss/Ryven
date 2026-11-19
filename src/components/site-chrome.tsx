@@ -18,7 +18,7 @@ const NAV = [
 
 export function Logo() {
   return (
-    <Link href="/" className="flex items-center" aria-label="Ryven home">
+    <Link href="/" className="flex items-center" aria-label="Ryyven home">
       <RyvenLogo size={30} />
     </Link>
   );
@@ -82,7 +82,7 @@ export function Footer() {
     <footer className="mt-24 border-t border-line">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
-          <Link href="/" aria-label="Ryven home">
+          <Link href="/" aria-label="Ryyven home">
             <RyvenLogo size={30} tagline />
           </Link>
           <p className="mt-3 max-w-xs text-sm text-muted">The memecoin terminal with an AI agent. Trade live, launch coins, let your agent run the rest. Built on Solana.</p>
@@ -106,7 +106,7 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <div className="border-t border-line py-5 text-center text-xs text-faint">© 2026 Ryven · UBC 2026 Hackathon · Agentic Payments &amp; AI</div>
+      <div className="border-t border-line py-5 text-center text-xs text-faint">© 2026 Ryyven · UBC 2026 Hackathon · Agentic Payments &amp; AI</div>
     </footer>
   );
 }

@@ -23,7 +23,7 @@ export async function sendWalletTransaction(
   } catch (e) {
     throw new Error(friendlyError(e));
   }
-  // HTTP polling (the browser talks to Solana through Ryven's /api/rpc relay, which has no WebSocket).
+  // HTTP polling (the browser talks to Solana through Ryyven's /api/rpc relay, which has no WebSocket).
   const res = await confirmByPolling(connection, signature, lastValidBlockHeight, "confirmed");
   if (res.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(res.err)}`);
   return signature;

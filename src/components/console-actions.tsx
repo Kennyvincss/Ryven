@@ -172,7 +172,7 @@ function ActionBody({ action: a, agent, onDone }: { action: ConsoleAction; agent
       );
       break;
     case "sign_trade":
-      body = <p className="text-xs text-muted">Your wallet will show the exact transaction. Ryven checked it and simulated it on Solana first.</p>;
+      body = <p className="text-xs text-muted">Your wallet will show the exact transaction. Ryyven checked it and simulated it on Solana first.</p>;
       buttons = (
         <>
           <Button variant="ghost" loading={busy} onClick={() => run(() => api(`/api/trades/${a.tradeId}/cancel`, { method: "POST" }).then(() => undefined), "Trade dismissed.")}>

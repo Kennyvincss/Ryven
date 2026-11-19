@@ -133,7 +133,7 @@ export function WalletBriefPanel({ agentId }: { agentId: string }) {
           </Field>
         </div>
         <div className="mt-3 flex items-center justify-between gap-3">
-          <span className="text-xs text-muted">{d.settings.lastAt ? `Last brief ${timeAgo(d.settings.lastAt)}` : "Runs while your Ryven server is running."}</span>
+          <span className="text-xs text-muted">{d.settings.lastAt ? `Last brief ${timeAgo(d.settings.lastAt)}` : "Runs while your Ryyven server is running."}</span>
           <Button size="sm" variant="secondary" onClick={save} loading={busy === "save"} disabled={!dirty}>
             Save
           </Button>
