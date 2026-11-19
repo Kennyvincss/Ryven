@@ -79,12 +79,10 @@ function Column({
           <p className="text-[11px] text-faint">{hint}</p>
         </div>
         <div className="flex items-center gap-2">
-          {paused ? (
+          {paused && (
             <span className="inline-flex items-center gap-1 text-[11px] text-warn">
               <Pause className="size-3" /> Paused
             </span>
-          ) : (
-            <span className="font-mono text-[11px] text-muted">{list.length}</span>
           )}
           <button
             type="button"
@@ -313,7 +311,7 @@ export default function LivePage() {
         ))}
       </div>
       <p className="mt-3 text-[11px] text-faint">
-        Up to 30 coins per column (the data source&apos;s limit); filters search the whole market. Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryyven checks and simulates every transaction before you sign. Memecoins are extremely risky
+        Filters search the whole market. Market data: Jupiter. Buys and sells are real SOL from your wallet; Ryyven checks and simulates every transaction before you sign. Memecoins are extremely risky
         and many go to zero.
       </p>
     </div>
