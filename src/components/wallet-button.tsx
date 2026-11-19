@@ -1,16 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { ChevronDown, LayoutDashboard, LogOut, ShieldCheck, Wallet } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { SignInPanel } from "./sign-in-panel";
 import { useSession } from "@/lib/client/session";
 import { shortAddress } from "@/lib/shared/amounts";
 import { Button, CopyButton, cn } from "./ui";
 
 export function WalletButton({ className }: { className?: string }) {
   const { publicKey, connected, connecting, disconnect, wallet } = useWallet();
-  const { setVisible } = useWalletModal();
+  const path = usePathname();
   const { authed, signIn, signingIn, signOut, session } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -22,8 +23,9 @@ export function WalletButton({ className }: { className?: string }) {
   }, []);
 
   if (!connected || !publicKey) {
+    // Not connected: the sign-in screen (connect + sign in one place), then back here.
     return (
-      <Button size="md" className={className} onClick={() => setVisible(true)} loading={connecting}>
+      <Button size="md" className={className} href={`/signin?next=${encodeURIComponent(!path || path === "/signin" ? "/dashboard" : path)}`} loading={connecting}>
         <Wallet className="size-4" /> Connect wallet
       </Button>
     );
@@ -89,32 +91,10 @@ export function WalletButton({ className }: { className?: string }) {
   );
 }
 
-/** Inline gate: renders children only when wallet is connected and signed in. */
-export function AuthGate({ children, title = "Connect & sign in", reason }: { children: React.ReactNode; title?: string; reason?: string }) {
-  const { connected } = useWallet();
-  const { setVisible } = useWalletModal();
-  const { authed, signIn, signingIn, loading, error } = useSession();
+/** Inline gate: renders children only when the wallet is connected and signed in; otherwise the sign-in screen. */
+export function AuthGate({ children, title, reason }: { children: React.ReactNode; title?: string; reason?: string }) {
+  const { authed, loading } = useSession();
   if (loading) return null;
   if (authed) return <>{children}</>;
-  return (
-    <div className="mx-auto max-w-md rounded-[var(--radius-card)] border border-line bg-panel p-8 text-center">
-      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-accent/10 text-accent">
-        <Wallet className="size-5" />
-      </div>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-1.5 text-sm text-muted">
-        {reason ?? "Ryven verifies wallet ownership with a signed message. It's free, sends no transaction, and we never ask for your seed phrase."}
-      </p>
-      <div className="mt-5">
-        {!connected ? (
-          <Button onClick={() => setVisible(true)}>Connect wallet</Button>
-        ) : (
-          <Button onClick={() => signIn()} loading={signingIn}>
-            Sign in with wallet
-          </Button>
-        )}
-      </div>
-      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
-    </div>
-  );
+  return <SignInPanel title={title} subtitle={reason} />;
 }

@@ -8,7 +8,7 @@ const INTERVALS = ["1s", "15s", "1m", "5m", "15m", "1h", "4h", "1d"] as const;
 type Interval = (typeof INTERVALS)[number];
 const REFRESH_MS: Record<Interval, number> = { "1s": 2000, "15s": 3000, "1m": 4000, "5m": 8000, "15m": 15000, "1h": 30000, "4h": 60000, "1d": 120000 };
 
-const C = { bg: "#090b10", grid: "#151925", text: "#8a90a2", up: "#a6f46a", down: "#ff6b7a", line: "#1e2230" };
+const C = { bg: "#0a0c0f", grid: "#151920", text: "#8a90a2", up: "#c6ff3d", down: "#ff6b7a", line: "#1e2230" };
 
 function fmtAxis(v: number, kind: "price" | "mcap") {
   if (kind === "mcap" || Math.abs(v) >= 1000) {
@@ -78,7 +78,7 @@ export function PriceChart({ mint, height = 420 }: { mint: string; height?: numb
         }
         candles.current.setData(data.map((d) => ({ time: d.time as UTCTimestamp, open: d.open, high: d.high, low: d.low, close: d.close })));
         volume.current.setData(
-          data.map((d) => ({ time: d.time as UTCTimestamp, value: d.volume, color: d.close >= d.open ? "rgba(166,244,106,0.35)" : "rgba(255,107,122,0.35)" })),
+          data.map((d) => ({ time: d.time as UTCTimestamp, value: d.volume, color: d.close >= d.open ? "rgba(198,255,61,0.35)" : "rgba(255,107,122,0.35)" })),
         );
         if (first) {
           chart.current?.timeScale().fitContent();
@@ -103,7 +103,7 @@ export function PriceChart({ mint, height = 420 }: { mint: string; height?: numb
   const change = last && last.open ? ((last.close - last.open) / last.open) * 100 : null;
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-[#090b10]">
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-bg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="flex flex-wrap gap-0.5">
           {INTERVALS.map((i) => (

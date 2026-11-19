@@ -1,23 +1,26 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #06070a;
-  --color-panel: #0d0f15;
-  --color-panel-2: #131620;
-  --color-panel-3: #1a1e2a;
-  --color-line: #1e2230;
-  --color-line-2: #2a2f40;
+  /* Ryven brand: Void background, Volt accent */
+  --color-bg: #0a0c0f;
+  --color-panel: #0f1216;
+  --color-panel-2: #151920;
+  --color-panel-3: #1c2129;
+  --color-line: #1e232b;
+  --color-line-2: #2a303a;
   --color-text: #e9ebf1;
   --color-muted: #8a90a2;
   --color-faint: #5b6174;
-  --color-accent: #a6f46a;
+  --color-accent: #c6ff3d;
   --color-accent-2: #6fe0b4;
   --color-agent: #9585ff;
   --color-warn: #f5c063;
   --color-danger: #ff6b7a;
   --color-info: #6cb8ff;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  /* brand: Space Grotesk 700 for display, JetBrains Mono 500 for data */
+  --font-display: "Space Grotesk Variable", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   --radius-card: 18px;
 }
 
@@ -60,7 +63,7 @@ body {
 @keyframes caret { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
 .caret { animation: caret 1s step-end infinite; }
 /* Live terminal: new rows / cards briefly highlight. */
-@keyframes flash { 0% { background-color: rgba(166, 244, 106, 0.14) } 100% { background-color: transparent } }
+@keyframes flash { 0% { background-color: rgba(198, 255, 61, 0.14) } 100% { background-color: transparent } }
 .animate-flash { animation: flash 1.2s ease-out; }
 
 /* Wallet adapter theming */
@@ -70,3 +73,8 @@ body {
 .wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover { background: var(--color-panel-3) !important; }
 .wallet-adapter-dropdown-list { background: var(--color-panel-2) !important; border: 1px solid var(--color-line); font-family: var(--font-sans) !important; }
 .wallet-adapter-dropdown-list-item:not([disabled]):hover { background: var(--color-panel-3) !important; }
+
+/* Brand typography: headings in Space Grotesk (utilities can still override). */
+@layer base {
+  h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; }
+}
