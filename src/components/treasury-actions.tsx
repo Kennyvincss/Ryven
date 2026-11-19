@@ -4,7 +4,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useNetworkConnection } from "@/lib/client/network";
 import { ACCOUNT_SIZE, TOKEN_PROGRAM_ID, getAccountLenForMint, getMint } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { buildFundSolTreasuryInstructions, buildWithdrawSolInstructions } from "@/lib/solana/sol-payment";
+import { buildDepositSolInstructions, buildFundSolTreasuryInstructions, buildWithdrawSolInstructions } from "@/lib/solana/sol-payment";
 import { ArrowDownToLine, ArrowUpFromLine, Ban, KeyRound } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { sendWalletTransaction } from "@/lib/client/wallet-tx";
@@ -23,16 +23,26 @@ export type AgentRef = {
   signerPubkey: string;
   creatorWallet: string;
   network?: "devnet" | "mainnet";
-  treasury: { address: string; mint: string } | null;
+  /** the agent's main treasury (asset/decimals/unit given by the API) */
+  treasury: { address: string; mint: string; asset?: "usdc" | "sol" | "token"; decimals?: number; tokenProgram?: string; unit?: string } | null;
 };
 
-/** Which treasury an action targets. Omitted = the agent's USDC treasury. */
+/** Which treasury an action targets. Omitted = the agent's main treasury. */
 export type TreasurySpec = { asset: "usdc" | "token" | "sol"; address: string; mint: string; tokenProgram: string; decimals: number; unit: string };
 
 function resolveSpec(agent: AgentRef, spec?: TreasurySpec): TreasurySpec | null {
   if (spec) return spec;
   if (!agent.treasury) return null;
-  return { asset: "usdc", address: agent.treasury.address, mint: agent.treasury.mint, tokenProgram: TOKEN_PROGRAM_ID.toBase58(), decimals: USDC_DECIMALS, unit: usdcLabelFor(agent.network ?? APP_NETWORK) };
+  const t = agent.treasury;
+  const asset = t.asset ?? "usdc";
+  return {
+    asset,
+    address: t.address,
+    mint: t.mint,
+    tokenProgram: t.tokenProgram ?? TOKEN_PROGRAM_ID.toBase58(),
+    decimals: t.decimals ?? (asset === "sol" ? 9 : USDC_DECIMALS),
+    unit: t.unit ?? (asset === "sol" ? "SOL" : usdcLabelFor(agent.network ?? APP_NETWORK)),
+  };
 }
 
 function useTx(network: "devnet" | "mainnet" = APP_NETWORK) {
@@ -243,12 +253,17 @@ export function TreasuryOwnerActions({ agent, balance, onDone, spec }: { agent: 
 /** Anyone can deposit into an agent treasury (sponsors, community). */
 export function DepositToTreasury({ agent, onDone }: { agent: AgentRef; onDone?: () => void }) {
   const { run, busy, error, sig, wallet } = useTx(agent.network);
-  const [amount, setAmount] = useState("10");
-  if (!agent.treasury) return null;
+  const spec = resolveSpec(agent);
+  const isSol = spec?.asset === "sol";
+  const [amount, setAmount] = useState(isSol ? "0.1" : "10");
+  if (!agent.treasury || !spec) return null;
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <div className="relative flex-1">
+          <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="pr-16" />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">{spec.unit}</span>
+        </div>
         <Button
           variant="secondary"
           loading={busy}
@@ -256,7 +271,9 @@ export function DepositToTreasury({ agent, onDone }: { agent: AgentRef; onDone?:
           onClick={() =>
             run(agent.id, async () =>
               new Transaction().add(
-                ...buildDepositInstructions(wallet.publicKey!, new PublicKey(agent.treasury!.address), new PublicKey(agent.treasury!.mint), toBaseUnits(amount, USDC_DECIMALS)),
+                ...(isSol
+                  ? buildDepositSolInstructions(wallet.publicKey!, new PublicKey(spec.address), toBaseUnits(amount, 9))
+                  : buildDepositInstructions(wallet.publicKey!, new PublicKey(spec.address), new PublicKey(spec.mint), toBaseUnits(amount, spec.decimals))),
               ),
             ).then((s) => s && onDone?.())
           }

@@ -165,6 +165,8 @@ export const agents = pgTable(
     solAutoApproveLimit: bigint("sol_auto_approve_limit", { mode: "bigint" }),
     solDailyLimit: bigint("sol_daily_limit", { mode: "bigint" }),
     // ── pump.fun trading on mainnet (lamports). Only the creator can change these. ──
+    /** The agent's main treasury: SOL for new agents (USDC for agents created before). */
+    primaryAsset: assetEnum("primary_asset").notNull().default("sol"),
     tradingMode: tradingModeEnum("trading_mode").notNull().default("off"),
     tradeMaxSol: bigint("trade_max_sol", { mode: "bigint" }).notNull().default(sql`0`),
     tradeDailySol: bigint("trade_daily_sol", { mode: "bigint" }).notNull().default(sql`0`),

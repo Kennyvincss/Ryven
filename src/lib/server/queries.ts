@@ -74,20 +74,27 @@ export function agentView(a: Agent, treasury: Treasury | null | undefined, stats
             dailyLimit: fromBaseUnits(a.solDailyLimit, 9),
           }
         : null,
+    /** The agent's main treasury (SOL for new agents, USDC for older ones). */
+    primaryAsset: a.primaryAsset,
     treasury: treasury
       ? {
+          asset: treasury.asset,
+          unit: treasury.asset === "usdc" ? "USDC" : treasury.asset === "sol" ? "SOL" : "$" + (treasury.symbol ?? "TOKEN"),
+          decimals: treasury.decimals,
+          tokenProgram: treasury.tokenProgram,
           address: treasury.address,
           mint: treasury.mint,
           ownerWallet: treasury.ownerWallet,
           seed: treasury.seed,
-          cachedBalance: usd(treasury.lastBalance),
-          cachedAllowance: usd(treasury.lastAllowance),
+          cachedBalance: fromBaseUnits(treasury.lastBalance, treasury.decimals),
+          cachedAllowance: fromBaseUnits(treasury.lastAllowance, treasury.decimals),
           lastSyncedAt: treasury.lastSyncedAt?.toISOString() ?? null,
-          totalDeposits: usd(treasury.totalDeposits),
-          totalSpent: usd(treasury.totalSpent),
+          totalDeposits: fromBaseUnits(treasury.totalDeposits, treasury.decimals),
+          totalSpent: fromBaseUnits(treasury.totalSpent, treasury.decimals),
         }
       : null,
-    stats: stats ?? null,
+    // "paid out" in the agent's main currency
+    stats: stats ? { ...stats, confirmedVolume: a.primaryAsset === "sol" ? stats.confirmedVolumeSol : stats.confirmedVolume } : null,
     createdAt: a.createdAt.toISOString(),
   };
 }
@@ -141,6 +148,7 @@ export type PaymentCreatorView = ReturnType<typeof paymentCreatorView>;
 export type AgentStats = {
   confirmedPayments: number;
   confirmedVolume: string;
+  confirmedVolumeSol: string;
   tasksCompleted: number;
   pendingApprovals: number;
   lastActivityAt: string | null;
@@ -154,6 +162,7 @@ export async function agentStats(agentIds: string[]): Promise<Map<string, AgentS
       agentId: schema.payments.agentId,
       confirmed: sql<number>`count(*) filter (where ${schema.payments.status} = 'confirmed')::int`,
       volume: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed' and ${schema.payments.asset} = 'usdc'), 0)::text`,
+      volumeSol: sql<string>`coalesce(sum(${schema.payments.amount}) filter (where ${schema.payments.status} = 'confirmed' and ${schema.payments.asset} = 'sol'), 0)::text`,
       pending: sql<number>`count(*) filter (where ${schema.payments.status} = 'awaiting_approval')::int`,
       instructions: sql<number>`count(distinct ${schema.payments.instructionId}) filter (where ${schema.payments.status} = 'confirmed')::int`,
     })
@@ -171,6 +180,7 @@ export async function agentStats(agentIds: string[]): Promise<Map<string, AgentS
     out.set(id, {
       confirmedPayments: p?.confirmed ?? 0,
       confirmedVolume: usd(BigInt(p?.volume ?? "0")),
+      confirmedVolumeSol: fromBaseUnits(BigInt(p?.volumeSol ?? "0"), 9),
       tasksCompleted: p?.instructions ?? 0,
       pendingApprovals: p?.pending ?? 0,
       lastActivityAt: a?.last ? new Date(a.last).toISOString() : null,
@@ -185,7 +195,7 @@ export async function listAgents(opts: { sort?: string; creator?: string; limit?
   const rows = await db
     .select({ agent: schema.agents, treasury: schema.treasuries, token: schema.tokens })
     .from(schema.agents)
-    .leftJoin(schema.treasuries, and(eq(schema.treasuries.agentId, schema.agents.id), eq(schema.treasuries.asset, "usdc")))
+    .leftJoin(schema.treasuries, and(eq(schema.treasuries.agentId, schema.agents.id), eq(schema.treasuries.asset, schema.agents.primaryAsset)))
     .innerJoin(schema.tokens, eq(schema.tokens.id, schema.agents.tokenId))
     .where(and(...conds))
     .orderBy(desc(schema.agents.createdAt))

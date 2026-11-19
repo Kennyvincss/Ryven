@@ -23,7 +23,7 @@ type Resp = {
     creatorWallet: string;
     signerPubkey: string;
     policy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string; categories: string[]; recipientPolicy: string };
-    treasury: { address: string; mint: string; cachedBalance: string; cachedAllowance: string; totalDeposits: string; totalSpent: string; lastSyncedAt: string | null } | null;
+    treasury: { address: string; mint: string; cachedBalance: string; cachedAllowance: string; totalDeposits: string; totalSpent: string; lastSyncedAt: string | null; unit?: string; asset?: "usdc" | "sol" | "token"; decimals?: number; tokenProgram?: string } | null;
     stats: { confirmedPayments: number; confirmedVolume: string; tasksCompleted: number } | null;
     createdAt: string;
   };
@@ -54,7 +54,7 @@ export default function AgentProfile() {
               <h1 className="text-2xl font-semibold tracking-tight">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous" : "Approval mode"}</Badge>
-              {a.network === "mainnet" && <Badge tone="warn">Real USDC</Badge>}
+              {a.network === "mainnet" && <Badge tone="warn">Real {a.treasury?.unit ?? "SOL"}</Badge>}
             </div>
             <p className="mt-1.5 max-w-2xl text-sm text-muted">{a.description}</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
@@ -72,8 +72,8 @@ export default function AgentProfile() {
       </Card>
 
       <Card className="mt-5 grid grid-cols-2 gap-5 p-5 sm:grid-cols-4">
-        <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${usdcLabelFor(a.network)} · synced ${a.treasury?.lastSyncedAt ? timeAgo(a.treasury.lastSyncedAt) : "never"}`} accent />
-        <Stat label="Total paid out" value={Number(a.stats?.confirmedVolume ?? 0).toLocaleString()} hint={usdcLabel} />
+        <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${a.treasury?.unit ?? usdcLabelFor(a.network)} · synced ${a.treasury?.lastSyncedAt ? timeAgo(a.treasury.lastSyncedAt) : "never"}`} accent />
+        <Stat label="Total paid out" value={Number(a.stats?.confirmedVolume ?? 0).toLocaleString()} hint={a.treasury?.unit ?? usdcLabel} />
         <Stat label="Confirmed payments" value={a.stats?.confirmedPayments ?? 0} />
         <Stat label="Tasks completed" value={a.stats?.tasksCompleted ?? 0} hint="instructions with confirmed payouts" />
       </Card>
@@ -110,7 +110,7 @@ export default function AgentProfile() {
             </dl>
           </Card>
           <Card>
-            <CardHeader title="Support this treasury" subtitle={`Anyone can deposit ${usdcLabel}`} icon={<Wallet className="size-4" />} />
+            <CardHeader title="Support this treasury" subtitle={`Anyone can deposit ${a.treasury?.unit ?? usdcLabel}`} icon={<Wallet className="size-4" />} />
             <div className="p-5">
               <DepositToTreasury agent={{ id: a.id, signerPubkey: a.signerPubkey, creatorWallet: a.creatorWallet, network: a.network, treasury: a.treasury }} onDone={q.reload} />
             </div>

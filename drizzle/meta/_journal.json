@@ -64,6 +64,13 @@
       "when": 1794986536928,
       "tag": "0008_hide_private_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795059687978,
+      "tag": "0009_primary_asset",
+      "breakpoints": true
     }
   ]
 }

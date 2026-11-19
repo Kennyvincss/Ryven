@@ -46,7 +46,8 @@ type AgentResp = {
     tokenPolicy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
     solPolicy: { maxPerTx: string; autoApproveLimit: string; dailyLimit: string } | null;
     trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] };
-    treasury: { address: string; mint: string } | null;
+    primaryAsset: "usdc" | "sol" | "token";
+    treasury: { address: string; mint: string; asset?: "usdc" | "sol" | "token"; decimals?: number; tokenProgram?: string; unit?: string } | null;
   };
   private: { instructions: string; pausedReason: string | null; trading: { mode: "off" | "proposal" | "autonomous"; maxSolPerTrade: string; dailySol: string; mints: string[] } } | null;
   isCreator: boolean;
@@ -58,7 +59,10 @@ type AgentResp = {
 function Console({ id }: { id: string }) {
   const config = useAppConfig();
   const agentQ = useApi<AgentResp>(`/api/agents/${id}`);
-  const [asset, setAsset] = useState<"usdc" | "token" | "sol">("usdc");
+  const [picked, setPicked] = useState<"usdc" | "token" | "sol" | null>(null);
+  // Until the creator picks a tab, show the agent's main treasury (SOL for new agents).
+  const asset = picked ?? agentQ.data?.agent.primaryAsset ?? "sol";
+  const setAsset = setPicked;
   const treasuryQ = useApi<TreasuryState>(`/api/agents/${id}/treasury?asset=${asset}`, { refreshMs: 15000 });
   const actQ = useApi<{ activities: ActivityItem[] }>(`/api/agents/${id}/activities`, { refreshMs: 6000 });
   const [tab, setTab] = useState<"payments" | "contributors" | "manual" | "trading" | "brief" | "alerts" | "settings">("payments");
@@ -108,7 +112,7 @@ function Console({ id }: { id: string }) {
               <h1 className="text-xl font-semibold">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous mode" : "Approval mode"}</Badge>
-              {a.network === "mainnet" && <Badge tone="warn">Real USDC</Badge>}
+              {a.network === "mainnet" && <Badge tone="warn">Real {a.primaryAsset === "usdc" ? "USDC" : "SOL"}</Badge>}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               {d.token && (
@@ -138,7 +142,7 @@ function Console({ id }: { id: string }) {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-5">
-          <AgentTerminal agentId={id} agentName={a.name} avatarSeed={a.avatarSeed} aiEnabled={!!config?.aiEnabled} onActivity={refreshAll} agent={agentRef} />
+          <AgentTerminal agentId={id} agentName={a.name} avatarSeed={a.avatarSeed} aiEnabled={!!config?.aiEnabled} onActivity={refreshAll} agent={agentRef} unit={a.primaryAsset === "usdc" ? "USDC" : "SOL"} />
 
           <Card>
             <Tabs
@@ -186,7 +190,7 @@ function Console({ id }: { id: string }) {
         <div className="space-y-5">
           <Card>
             <div className="flex gap-1 px-4 pt-3">
-              {(["usdc", "sol", "token"] as const).map((a) => (
+              {(d.agent.primaryAsset === "usdc" ? (["usdc", "sol", "token"] as const) : (["sol", "usdc", "token"] as const)).map((a) => (
                 <button
                   key={a}
                   onClick={() => {

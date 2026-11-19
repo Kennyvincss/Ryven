@@ -37,8 +37,8 @@ type Entry =
   | { kind: "action"; action: ConsoleAction }
   | { kind: "error"; text: string };
 
-const SUGGESTIONS = [
-  "Reward three approved community contributors with 5 USDC each.",
+const suggestions = (unit: string) => [
+  `Reward three approved community contributors with ${unit === "SOL" ? "0.01 SOL" : `5 ${unit}`} each.`,
   "Check how much money is left in your treasury.",
   "Show me all payments you made today.",
   "Prepare a reward campaign for our community.",
@@ -92,6 +92,7 @@ export function AgentTerminal({
   aiEnabled,
   onActivity,
   agent,
+  unit = "SOL",
 }: {
   agentId: string;
   agentName: string;
@@ -100,7 +101,10 @@ export function AgentTerminal({
   onActivity?: () => void;
   /** enables the one-click action popups */
   agent?: AgentRef;
+  /** the agent's main currency, for example prompts */
+  unit?: string;
 }) {
+  const SUGGESTIONS = suggestions(unit);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [openAction, setOpenAction] = useState<ConsoleAction | null>(null);
   const [resolved, setResolved] = useState<Record<string, string>>({});

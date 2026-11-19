@@ -54,7 +54,7 @@ type Resp = {
     status: string;
     mode: string;
     policy: { maxPerTx: string; dailyLimit: string; categories: string[] };
-    treasury: { address: string; cachedBalance: string; totalSpent: string } | null;
+    treasury: { address: string; cachedBalance: string; totalSpent: string; unit?: string } | null;
     stats: { confirmedPayments: number; confirmedVolume: string } | null;
   } | null;
 };
@@ -228,7 +228,7 @@ export default function TokenPage() {
                 </div>
                 <p className="mt-3 text-sm text-muted">{a.objectives || a.description}</p>
                 <div className="mt-4 grid grid-cols-2 gap-4">
-                  <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${usdcLabel} · last sync`} />
+                  <Stat label="Treasury" value={Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} hint={`${a.treasury?.unit ?? usdcLabel} · last sync`} />
                   <Stat label="Paid out" value={Number(a.stats?.confirmedVolume ?? 0).toLocaleString()} hint={`${a.stats?.confirmedPayments ?? 0} payments`} />
                   <Stat label="Max / payment" value={a.policy.maxPerTx} />
                   <Stat label="Daily limit" value={a.policy.dailyLimit} />

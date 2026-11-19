@@ -16,7 +16,7 @@ export const GET = handler(async (_req: Request, { params }: P) => {
   const session = await getSession();
   const isCreator = session?.wallet === agent.creatorWallet;
   const [treasury, token, stats, contributors, payments] = await Promise.all([
-    db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, "usdc")) }),
+    db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, agent.primaryAsset)) }),
     db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) }),
     agentStats([id]),
     db.select().from(schema.contributors).where(eq(schema.contributors.agentId, id)).orderBy(desc(schema.contributors.activityScore)),
@@ -125,6 +125,6 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
       message: `Creator updated spending policy (mode ${policy.mode}, max/tx ${body.policy.maxPerTx}, daily ${body.policy.dailyLimit} USDC)`,
     });
   }
-  const treasury = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, "usdc")) });
+  const treasury = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, agent.primaryAsset)) });
   return json({ agent: agentView(updated, treasury) });
 });

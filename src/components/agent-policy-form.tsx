@@ -20,7 +20,10 @@ export const DEFAULT_POLICY: PolicyState = {
   recipientPolicy: "allowlist_only",
 };
 
-export function PolicyForm({ value, onChange }: { value: PolicyState; onChange: (v: PolicyState) => void }) {
+/** SOL defaults for a new agent's limits (the main treasury is SOL). */
+export const DEFAULT_SOL_LIMITS = { maxPerTx: "0.05", autoApproveLimit: "0.05", dailyLimit: "0.2" };
+
+export function PolicyForm({ value, onChange, unit = usdcLabel }: { value: PolicyState; onChange: (v: PolicyState) => void; unit?: string }) {
   const set = (p: Partial<PolicyState>) => onChange({ ...value, ...p });
   return (
     <div className="space-y-5">
@@ -49,7 +52,7 @@ export function PolicyForm({ value, onChange }: { value: PolicyState; onChange: 
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Max per payment" hint={`${usdcLabel}, hard cap`}>
+        <Field label="Max per payment" hint={`${unit}, hard cap`}>
           <Input inputMode="decimal" value={value.maxPerTx} onChange={(e) => set({ maxPerTx: e.target.value })} />
         </Field>
         <Field label="Autonomous up to" hint="above → approval">

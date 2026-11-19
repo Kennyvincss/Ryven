@@ -87,7 +87,7 @@ export type AgentListItem = {
   status: "active" | "paused";
   mode: string;
   createdAt: string;
-  treasury: { address: string; cachedBalance: string; totalSpent: string } | null;
+  treasury: { address: string; cachedBalance: string; totalSpent: string; unit?: string } | null;
   stats: { confirmedPayments: number; confirmedVolume: string; tasksCompleted: number; lastActivityAt: string | null } | null;
   token: { mint: string; name: string; symbol: string; imageUri: string | null };
 };
@@ -121,7 +121,7 @@ export function AgentCard({ a }: { a: AgentListItem }) {
         <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-[11px]">
           <div>
             <div className="text-faint">Treasury</div>
-            <div className="mt-0.5 font-mono text-text">{Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} {usdcLabel}</div>
+            <div className="mt-0.5 font-mono text-text">{Number(a.treasury?.cachedBalance ?? 0).toLocaleString()} {a.treasury?.unit ?? usdcLabel}</div>
           </div>
           <div>
             <div className="text-faint">Paid out</div>

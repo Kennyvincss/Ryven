@@ -3,10 +3,10 @@ import { eq } from "drizzle-orm";
 import { PublicKey } from "@solana/web3.js";
 import { z } from "zod";
 import { requireSession } from "@/lib/server/auth";
-import { PolicyInput, ProfileInput } from "@/lib/server/agents";
+import { PolicyInput, ProfileInput, SolPolicyInput } from "@/lib/server/agents";
 import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
-import { EngineError } from "@/lib/server/engine/payments";
+import { EngineError, ensureSolTreasury } from "@/lib/server/engine/payments";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { agentView, listAgents } from "@/lib/server/queries";
 import { generateAgentSigner } from "@/lib/server/signer";
@@ -20,7 +20,17 @@ export const GET = handler(async (req: Request) => {
   });
 });
 
-const Body = z.object({ tokenMint: z.string(), acknowledgeMainnet: z.boolean().optional() }).and(ProfileInput).and(PolicyInput);
+const Body = z
+  .object({
+    tokenMint: z.string(),
+    acknowledgeMainnet: z.boolean().optional(),
+    /** The agent's main treasury. SOL by default; then `solPolicy` holds its limits. */
+    primaryAsset: z.enum(["sol", "usdc"]).default("sol"),
+    solPolicy: SolPolicyInput.optional(),
+  })
+  .and(ProfileInput)
+  .and(PolicyInput)
+  .refine((b) => b.primaryAsset !== "sol" || !!b.solPolicy, "Set the agent's SOL spending limits");
 
 /** Deploys an agent for a token the caller created: new delegate key + treasury address. */
 export const POST = handler(async (req: Request) => {
@@ -31,7 +41,7 @@ export const POST = handler(async (req: Request) => {
   if (!token) throw new EngineError("Token not found. Launch it first.", 404);
   if (token.creatorWallet !== wallet) throw new EngineError("Only the token's creator can deploy its agent", 403);
   if (token.network === "mainnet" && b.acknowledgeMainnet !== true) {
-    throw new EngineError("This agent will move real USDC. Confirm you understand to deploy it.", 400);
+    throw new EngineError("This agent will move real funds. Confirm you understand to deploy it.", 400);
   }
   const existing = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
   if (existing) throw new EngineError("This token already has an agent", 409);
@@ -60,6 +70,10 @@ export const POST = handler(async (req: Request) => {
         dailyLimit: b.dailyLimit,
         categories: b.categories,
         recipientPolicy: b.recipientPolicy,
+        primaryAsset: b.primaryAsset,
+        ...(b.primaryAsset === "sol" && b.solPolicy
+          ? { solMaxPerTx: b.solPolicy.maxPerTx, solAutoApproveLimit: b.solPolicy.autoApproveLimit, solDailyLimit: b.solPolicy.dailyLimit }
+          : {}),
         signerPubkey: signer.publicKey,
       })
       .returning();
@@ -70,11 +84,13 @@ export const POST = handler(async (req: Request) => {
       .returning();
     return { a, t };
   });
+  // SOL agents: create the SOL treasury now so it can be funded straight away.
+  const mainTreasury = agent.a.primaryAsset === "sol" ? await ensureSolTreasury(agent.a) : agent.t;
   await logActivity({
     agentId: id,
     type: "deployed",
     status: "completed",
-    message: `${b.name} deployed for $${token.symbol}${token.network === "mainnet" ? " (real USDC)" : ""}`,
+    message: `${b.name} deployed for $${token.symbol}${token.network === "mainnet" ? (b.primaryAsset === "sol" ? " (real SOL)" : " (real USDC)") : ""}`,
   });
-  return json({ agent: agentView(agent.a, agent.t) });
+  return json({ agent: agentView(agent.a, mainTreasury) });
 });

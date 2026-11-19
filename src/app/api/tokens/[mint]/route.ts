@@ -20,7 +20,7 @@ export const GET = handler(async (_req: Request, { params }: { params: Promise<{
   const token = await db.query.tokens.findFirst({ where: eq(schema.tokens.mint, mint) });
   if (!token) throw new EngineError("Token not found", 404);
   const agent = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
-  const treasury = agent ? await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, "usdc")) }) : null;
+  const treasury = agent ? await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, agent.id), eq(schema.treasuries.asset, agent.primaryAsset)) }) : null;
   const stats = agent ? (await agentStats([agent.id])).get(agent.id) : undefined;
   const isMainnet = token.network === "mainnet";
   const conn = isMainnet ? mainnetConnection() : connection();

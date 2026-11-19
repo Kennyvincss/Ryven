@@ -11,13 +11,13 @@ import { buildLaunchTransaction, TOKEN_LIMITS } from "@/lib/solana/launch";
 import { toBaseUnits } from "@/lib/shared/amounts";
 import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS, explorerTx } from "@/lib/shared/config";
 import { AuthGate } from "@/components/wallet-button";
-import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
+import { DEFAULT_POLICY, DEFAULT_SOL_LIMITS, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
 import { FundTreasury } from "@/components/treasury-actions";
 import { RiskNotice } from "@/components/risk-notice";
 import { Alert, Button, Card, CardHeader, Field, Input, PageHeader, Spinner, Textarea, TokenImage, TxLink, cn } from "@/components/ui";
 
 type Token = { mint: string; name: string; symbol: string; imageUri: string | null; launchSignature: string; network?: "devnet" | "mainnet"; launchMode?: string };
-type Agent = { id: string; name: string; signerPubkey: string; creatorWallet: string; network?: "devnet" | "mainnet"; treasury: { address: string; mint: string } | null };
+type Agent = { id: string; name: string; signerPubkey: string; creatorWallet: string; network?: "devnet" | "mainnet"; treasury: { address: string; mint: string; asset?: "usdc" | "sol" | "token"; decimals?: number; tokenProgram?: string; unit?: string } | null };
 
 function Steps({ step }: { step: number }) {
   const items = [
@@ -295,7 +295,14 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
     objectives: "Manage community rewards, monitor contributor activity and distribute approved rewards.",
     instructions: "",
   });
-  const [policy, setPolicy] = useState<PolicyState>(DEFAULT_POLICY);
+  const [currency, setCurrency] = useState<"sol" | "usdc">("sol");
+  const [policy, setPolicy] = useState<PolicyState>({ ...DEFAULT_POLICY, ...DEFAULT_SOL_LIMITS });
+  const unit = currency === "sol" ? "SOL" : "USDC";
+  function pickCurrency(c: "sol" | "usdc") {
+    setCurrency(c);
+    const limits = c === "sol" ? DEFAULT_SOL_LIMITS : { maxPerTx: DEFAULT_POLICY.maxPerTx, autoApproveLimit: DEFAULT_POLICY.autoApproveLimit, dailyLimit: DEFAULT_POLICY.dailyLimit };
+    setPolicy({ ...policy, ...limits });
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
@@ -303,11 +310,21 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
   const set = (k: keyof typeof p) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP({ ...p, [k]: e.target.value });
 
   async function deploy() {
-    if (isMainnet && !ack) return setError("Please confirm you understand this agent will move real USDC.");
+    if (isMainnet && !ack) return setError(`Please confirm you understand this agent will move real ${unit}.`);
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ agent: Agent }>("/api/agents", { json: { tokenMint: token.mint, ...p, ...policyPayload(policy), acknowledgeMainnet: isMainnet ? ack : undefined } });
+      const limits = policyPayload(policy);
+      const body =
+        currency === "sol"
+          ? {
+              // the agent's main treasury is SOL; USDC keeps its standard limits for later
+              ...policyPayload({ ...policy, maxPerTx: DEFAULT_POLICY.maxPerTx, autoApproveLimit: DEFAULT_POLICY.autoApproveLimit, dailyLimit: DEFAULT_POLICY.dailyLimit }),
+              primaryAsset: "sol",
+              solPolicy: { maxPerTx: limits.maxPerTx, autoApproveLimit: limits.autoApproveLimit, dailyLimit: limits.dailyLimit },
+            }
+          : { ...limits, primaryAsset: "usdc" };
+      const r = await api<{ agent: Agent }>("/api/agents", { json: { tokenMint: token.mint, ...p, ...body, acknowledgeMainnet: isMainnet ? ack : undefined } });
       onDeployed(r.agent);
     } catch (e) {
       const issues = (e as { body?: { issues?: { message: string }[] } }).body?.issues;
@@ -340,7 +357,28 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
         </Field>
         <div className="border-t border-line pt-5">
           <div className="mb-4 text-sm font-semibold">Spending permissions</div>
-          <PolicyForm value={policy} onChange={setPolicy} />
+          <div className="mb-5">
+            <div className="mb-1.5 text-[13px] font-medium">Treasury currency</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["sol", "SOL", "The agent pays in SOL from a treasury you fund with SOL. Recommended."],
+                  ["usdc", "USDC", "The agent pays in USDC from a USDC treasury."],
+                ] as const
+              ).map(([id, title, desc]) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => pickCurrency(id)}
+                  className={cn("rounded-xl border p-3.5 text-left transition-colors", currency === id ? "border-accent/50 bg-accent/10" : "border-line-2 bg-panel-2 hover:bg-panel-3")}
+                >
+                  <div className="text-sm font-semibold">{title}</div>
+                  <div className="mt-0.5 text-xs text-muted">{desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <PolicyForm value={policy} onChange={setPolicy} unit={unit} />
         </div>
         <Alert tone="info" title="How the agent's wallet works">
           Ryven generates a dedicated signing key for this agent and stores it encrypted on the server. It holds no funds. In the next step you
@@ -349,9 +387,9 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
         {isMainnet && (
           <RiskNotice
             eyebrow="Before you deploy"
-            title="This agent moves real USDC"
+            title={`This agent moves real ${unit}`}
             items={[
-              <>Its treasury is a USDC account you own. The agent can only spend the allowance you give it, within the limits above.</>,
+              <>Its treasury is a {unit} account you own. The agent can only spend the allowance you give it, within the limits above.</>,
               <>Start small. You can pause the agent or revoke its allowance at any time.</>,
               <>Ryven pays the network fees for its payments.</>,
             ]}
@@ -388,7 +426,7 @@ function PumpFunSuccess({ token }: { token: Token }) {
           Ryven page
         </Button>
       </div>
-      <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). It pays in real USDC.</p>
+      <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). It pays in real SOL (or USDC if you choose).</p>
     </Card>
   );
 }
@@ -449,7 +487,7 @@ function LaunchFlow() {
         <Card>
           <CardHeader title="Fund the treasury" subtitle={`Treasury ${agent.treasury?.address.slice(0, 8)}… is owned by your wallet. ${agent.name} is only a delegate.`} icon={<Wallet className="size-4" />} />
           <div className="p-5">
-            <FundTreasury agent={{ ...agent, treasury: agent.treasury ? { address: agent.treasury.address, mint: agent.treasury.mint } : null }} onDone={() => router.push(`/console/${agent.id}?welcome=1`)} />
+            <FundTreasury agent={agent} onDone={() => router.push(`/console/${agent.id}?welcome=1`)} />
             <div className="mt-4 text-center">
               <Button variant="ghost" size="sm" href={`/console/${agent.id}`}>
                 Skip for now → open agent console
