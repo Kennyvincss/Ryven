@@ -4,7 +4,8 @@ import { BriefInput, PolicyInput, ProfileInput, SolPolicyInput, TokenPolicyInput
 import { db, schema } from "@/lib/server/db";
 import { logActivity } from "@/lib/server/engine/activity";
 import { EngineError } from "@/lib/server/engine/payments";
-import { handler, json } from "@/lib/server/http";
+import { deleteAgent } from "@/lib/server/agent-delete";
+import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { agentPrivateView, agentStats, agentView, paymentCreatorView, paymentPublicView, tokenView } from "@/lib/server/queries";
 
 type P = { params: Promise<{ id: string }> };
@@ -127,4 +128,13 @@ export const PATCH = handler(async (req: Request, { params }: P) => {
   }
   const treasury = await db.query.treasuries.findFirst({ where: and(eq(schema.treasuries.agentId, id), eq(schema.treasuries.asset, agent.primaryAsset)) });
   return json({ agent: agentView(updated, treasury) });
+});
+
+/** Creator-only: permanently delete the agent. Refused while its treasuries or trading wallet still hold funds. */
+export const DELETE = handler(async (req: Request, { params }: P) => {
+  const { id } = await params;
+  const { agent, session } = await requireCreator(id);
+  enforceRateLimit(req, "agent-delete", 5, 60_000, session.wallet);
+  await deleteAgent(agent);
+  return json({ ok: true });
 });

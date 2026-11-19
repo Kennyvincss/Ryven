@@ -13,8 +13,10 @@
 import {
   ACCOUNT_SIZE,
   TOKEN_PROGRAM_ID,
+  NATIVE_MINT,
   createApproveCheckedInstruction,
   createAssociatedTokenAccountIdempotentInstruction,
+  createCloseAccountInstruction,
   createInitializeAccount3Instruction,
   createRevokeInstruction,
   createTransferCheckedInstruction,
@@ -120,6 +122,31 @@ export function buildWithdrawInstructions(
     createAssociatedTokenAccountIdempotentInstruction(owner, ownerAta, owner, mint, programId),
     createTransferCheckedInstruction(deriveTreasuryAddress(owner, agentId, asset, programId), mint, ownerAta, owner, amount, decimals, [], programId),
   ];
+}
+
+/**
+ * Owner empties a treasury back to their own wallet and closes it (used before deleting an agent).
+ * SOL treasury (wrapped SOL): closing returns the whole balance plus rent as plain SOL.
+ * Token treasuries: the full balance moves to the owner's own token account, then the account
+ * is closed and its rent comes back to the owner. Closing also ends the agent's allowance.
+ */
+export function buildCloseTreasuryInstructions(
+  owner: PublicKey,
+  agentId: string,
+  t: { asset: TreasuryAsset; mint: PublicKey; programId: PublicKey; decimals: number; balance: bigint },
+): TransactionInstruction[] {
+  const treasury = deriveTreasuryAddress(owner, agentId, t.asset, t.programId);
+  const ixs: TransactionInstruction[] = [];
+  const native = t.asset === "sol" && t.mint.equals(NATIVE_MINT);
+  if (!native && t.balance > 0n) {
+    const ownerAta = getAssociatedTokenAddressSync(t.mint, owner, false, t.programId);
+    ixs.push(
+      createAssociatedTokenAccountIdempotentInstruction(owner, ownerAta, owner, t.mint, t.programId),
+      createTransferCheckedInstruction(treasury, t.mint, ownerAta, owner, t.balance, t.decimals, [], t.programId),
+    );
+  }
+  ixs.push(createCloseAccountInstruction(treasury, owner, owner, [], t.programId));
+  return ixs;
 }
 
 /** Anyone (community, sponsors) can deposit into a treasury. */

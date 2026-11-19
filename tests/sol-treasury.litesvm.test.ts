@@ -4,7 +4,8 @@ import { FailedTransactionMetadata, LiteSVM } from "litesvm";
 import { address, getTransactionDecoder, lamports } from "@solana/kit";
 import { ACCOUNT_SIZE, AccountLayout, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
-import { deriveTreasuryAddress } from "../src/lib/solana/treasury";
+import { buildCloseTreasuryInstructions, deriveTreasuryAddress } from "../src/lib/solana/treasury";
+import { NATIVE_MINT } from "@solana/spl-token";
 import { buildAgentSolPaymentTransaction, buildFundSolTreasuryInstructions, buildWithdrawSolInstructions } from "../src/lib/solana/sol-payment";
 
 const SOL = (n: number) => BigInt(Math.round(n * 1e9));
@@ -76,5 +77,14 @@ describe("SOL payments via wrapped-SOL treasury (LiteSVM)", () => {
     ok(send(svm, build(creator, buildWithdrawSolInstructions(creator.publicKey, agentId, SOL(0.4), temp.publicKey, rent), [temp])));
     expect(wrapped()!.amount).toBe(SOL(1.0));
     expect(bal(creator.publicKey) - before > SOL(0.39)).toBe(true);
+  });
+
+  it("deleting the agent: closing the treasury returns all SOL plus rent, and the agent can no longer pay", () => {
+    const before = bal(creator.publicKey);
+    ok(send(svm, build(creator, buildCloseTreasuryInstructions(creator.publicKey, agentId, { asset: "sol", mint: NATIVE_MINT, programId: TOKEN_PROGRAM_ID, decimals: 9, balance: SOL(1) }))));
+    expect(wrapped()).toBeNull();
+    const back = bal(creator.publicKey) - before;
+    expect(back > SOL(1) && back <= SOL(1) + BigInt(rent)).toBe(true);
+    expect(pay(SOL(0.01))).toBeInstanceOf(FailedTransactionMetadata);
   });
 });

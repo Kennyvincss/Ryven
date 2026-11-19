@@ -18,6 +18,7 @@ import {
 } from "@solana/spl-token";
 import { Keypair, PublicKey, SystemProgram, Transaction, type TransactionInstruction } from "@solana/web3.js";
 import {
+  buildCloseTreasuryInstructions,
   buildFundTreasuryInstructions,
   buildRevokeInstructions,
   buildWithdrawInstructions,
@@ -168,7 +169,15 @@ describe("delegated treasury on SPL Token (LiteSVM)", () => {
   });
 
   it("creator can withdraw at any time", () => {
-    ok(send(svm, build(svm, creator, buildWithdrawInstructions(creator.publicKey, agentId, mint, U(85)))));
-    expect(tokenAccount(svm, treasury)!.amount).toBe(0n);
+    ok(send(svm, build(svm, creator, buildWithdrawInstructions(creator.publicKey, agentId, mint, U(80)))));
+    expect(tokenAccount(svm, treasury)!.amount).toBe(U(5));
+  });
+
+  it("deleting the agent: creator gets the rest back and the treasury is closed", () => {
+    const creatorAta = getAssociatedTokenAddressSync(mint, creator.publicKey);
+    const before = tokenAccount(svm, creatorAta)!.amount;
+    ok(send(svm, build(svm, creator, buildCloseTreasuryInstructions(creator.publicKey, agentId, { asset: "usdc", mint, programId: TOKEN_PROGRAM_ID, decimals: 6, balance: U(5) }))));
+    expect(tokenAccount(svm, creatorAta)!.amount - before).toBe(U(5));
+    expect(tokenAccount(svm, treasury)).toBeNull();
   });
 });

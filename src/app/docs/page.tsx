@@ -15,6 +15,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
     body: [
       "Give the agent a name, a personality and spending rules: the most it can pay at once, its daily limit, which categories it may pay for and who it may pay.",
       "The agent gets its own key, but it never holds your money. Its treasury is a token account you own, and the agent may only spend the allowance you give it. Solana itself refuses anything beyond that allowance, and you can revoke it at any time.",
+      "You can delete an agent at any time with Delete in its console. Ryyven first returns everything in its treasury and trading wallet to your wallet (one approval), then removes the agent. Your coin stays live, and you can deploy a new agent for it later.",
     ],
   },
   {

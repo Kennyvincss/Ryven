@@ -23,6 +23,7 @@ import {
   type TreasuryState,
 } from "@/components/console-panels";
 import { FundTreasury, TreasuryOwnerActions } from "@/components/treasury-actions";
+import { DeleteAgentButton } from "@/components/delete-agent";
 import { AuthGate } from "@/components/wallet-button";
 import { WalletBriefPanel } from "@/components/wallet-brief";
 import { AlertWatcher, PriceAlertsPanel } from "@/components/price-alerts";
@@ -135,6 +136,7 @@ function Console({ id }: { id: string }) {
             {a.status === "active" ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
             {a.status === "active" ? "Pause agent" : "Resume agent"}
           </Button>
+          <DeleteAgentButton agent={{ id: a.id, name: a.name, status: a.status, creatorWallet: a.creatorWallet, network: a.network }} />
         </div>
       </Card>
 

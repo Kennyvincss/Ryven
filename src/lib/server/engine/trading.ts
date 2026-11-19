@@ -18,7 +18,7 @@ import { mainnetConnection } from "../solana";
 import { PumpFunError, buildTradeTransaction, sendAndConfirmMainnet, simulateSpend, solDeltaOf, validateTradeTransaction, type TradeRequest } from "../pumpfun";
 import { BASE_SWAP_MINTS, SOL_MINT, SwapError, buildSwapTransaction, getQuote, mintInfo, resolveMint, simulateSwapSpend, symbolOf, validateSwapTransaction, type Quote } from "../jupiter";
 import { solUsd } from "../market";
-import { signAgentSwap, signAgentTrade, signTradingWalletWithdrawal } from "../signer";
+import { signAgentSwap, signAgentTrade, signTradingWalletCloseAccounts, signTradingWalletWithdrawal } from "../signer";
 import { evaluateTrade, type TradeProposal, type TradingPolicy } from "./trade-policy";
 import { fromBaseUnits, toBaseUnits } from "../../shared/amounts";
 import { EngineError, isPlatformPaused, startOfUtcDay } from "./payments";
@@ -414,6 +414,19 @@ export async function tradingWallet(agent: Agent): Promise<TradingWallet> {
   return { address: agent.signerPubkey, sol: lamports / 1e9, tokens };
 }
 
+/** Token accounts in the agent's trading wallet that hold nothing (closing them returns their rent). */
+async function emptyTokenAccounts(owner: string) {
+  const conn = mainnetConnection();
+  const pk = new PublicKey(owner);
+  const [spl, t22] = await Promise.all([
+    conn.getParsedTokenAccountsByOwner(pk, { programId: TOKEN_PROGRAM_ID }, "confirmed"),
+    conn.getParsedTokenAccountsByOwner(pk, { programId: TOKEN_2022_PROGRAM_ID }, "confirmed"),
+  ]);
+  return [...spl.value.map((a) => ({ a, p: TOKEN_PROGRAM_ID })), ...t22.value.map((a) => ({ a, p: TOKEN_2022_PROGRAM_ID }))]
+    .filter(({ a }) => (a.account.data as ParsedAccountData).parsed.info.tokenAmount.amount === "0")
+    .map(({ a, p }) => ({ account: a.pubkey.toBase58(), programId: p.toBase58() }));
+}
+
 /** Creator-only: send all tokens and SOL in the agent trading wallet back to the creator. */
 export async function withdrawTradingWallet(agentId: string, wallet: string) {
   const agent = await loadAgentRow(agentId);
@@ -434,7 +447,24 @@ export async function withdrawTradingWallet(agentId: string, wallet: string) {
     });
     signatures.push(await sendAndConfirmMainnet(new VersionedTransaction(tx.compileMessage(), tx.signatures.map((s) => s.signature!))));
   }
-  // 2) all remaining SOL minus the network fee
+  // 2) best effort: close the now-empty token accounts so their rent (~0.002 SOL each) comes back too
+  try {
+    const empty = await emptyTokenAccounts(agent.signerPubkey);
+    for (let i = 0; i < empty.length; i += 8) {
+      const { blockhash } = await conn.getLatestBlockhash("confirmed");
+      const tx = await signTradingWalletCloseAccounts({
+        agentId: agent.id,
+        agentSignerPubkey: agent.signerPubkey,
+        creatorWallet: agent.creatorWallet,
+        recentBlockhash: blockhash,
+        accounts: empty.slice(i, i + 8),
+      });
+      signatures.push(await sendAndConfirmMainnet(new VersionedTransaction(tx.compileMessage(), tx.signatures.map((s) => s.signature!))));
+    }
+  } catch {
+    // Some token accounts cannot be closed (e.g. withheld transfer fees). The funds were already moved.
+  }
+  // 3) all remaining SOL minus the network fee
   const lamports = BigInt(await conn.getBalance(new PublicKey(agent.signerPubkey), "confirmed"));
   const toSend = lamports - 5_000n;
   if (toSend > 0n) {

@@ -199,3 +199,27 @@ export async function signTradingWalletWithdrawal(args: {
     kp.secretKey.fill(0);
   }
 }
+
+/** Closes EMPTY token accounts in the agent's trading wallet; their rent goes to the CREATOR (fixed destination). */
+export async function signTradingWalletCloseAccounts(args: {
+  agentId: string;
+  agentSignerPubkey: string;
+  creatorWallet: string;
+  recentBlockhash: string;
+  accounts: { account: string; programId: string }[];
+}) {
+  const spl = await import("@solana/spl-token");
+  const kp = await loadAgentKeypair(args.agentId, args.agentSignerPubkey);
+  try {
+    const creator = new PublicKey(args.creatorWallet);
+    const tx = new Transaction({ feePayer: kp.publicKey, recentBlockhash: args.recentBlockhash });
+    for (const a of args.accounts) {
+      tx.add(spl.createCloseAccountInstruction(new PublicKey(a.account), creator, kp.publicKey, [], new PublicKey(a.programId)));
+    }
+    if (!tx.instructions.length) throw new Error("Nothing to close");
+    tx.sign(kp);
+    return tx;
+  } finally {
+    kp.secretKey.fill(0);
+  }
+}
