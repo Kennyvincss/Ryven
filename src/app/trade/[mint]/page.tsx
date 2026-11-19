@@ -64,7 +64,7 @@ export default function TradePage() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{t?.name ?? "…"}</h1>
-            <span className="font-mono text-muted">{t ? `$${t.symbol}` : ""}</span>
+            <span className="font-mono text-muted">{t ? `$${t.symbol.replace(/^\$/, "")}` : ""}</span>
             {t && t.bondingCurve !== null && <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] text-accent">On bonding curve</span>}
             {t && t.bondingCurve === null && t.graduatedAt && <span className="rounded-full border border-info/30 bg-info/10 px-2 py-0.5 text-[11px] text-info">Graduated</span>}
           </div>
