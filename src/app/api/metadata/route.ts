@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { descriptionField, nameField, socialField, symbolField } from "@/lib/server/launch-input";
 import { requireSession } from "@/lib/server/auth";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, storeBlob } from "@/lib/server/metadata";
@@ -7,15 +8,14 @@ import { TOKEN_LIMITS } from "@/lib/solana/launch";
 import { serverEnv } from "@/lib/server/env";
 import { APP_NETWORK, publicConfig } from "@/lib/shared/config";
 
-const url = z.union([z.literal(""), z.url().max(200)]).optional();
 const Body = z.object({
-  name: z.string().trim().min(1).max(TOKEN_LIMITS.name),
-  symbol: z.string().trim().min(1).max(TOKEN_LIMITS.symbol).regex(/^[A-Za-z0-9$]+$/),
-  description: z.string().trim().max(1000).default(""),
-  image: z.string().startsWith("data:"),
-  website: url,
-  twitter: url,
-  telegram: url,
+  name: nameField.max(TOKEN_LIMITS.name, `Name can be at most ${TOKEN_LIMITS.name} characters`),
+  symbol: symbolField(TOKEN_LIMITS.symbol),
+  description: descriptionField,
+  image: z.string().startsWith("data:", "Add a coin image"),
+  website: socialField("website"),
+  twitter: socialField("twitter"),
+  telegram: socialField("telegram"),
 });
 
 /** Uploads the token image + Metaplex-style JSON metadata and returns their URIs. */

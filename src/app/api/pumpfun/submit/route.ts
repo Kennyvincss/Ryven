@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { descriptionField, nameField, socialField, symbolField } from "@/lib/server/launch-input";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, getMint, getTokenMetadata } from "@solana/spl-token";
 import { requireSession } from "@/lib/server/auth";
@@ -11,18 +12,17 @@ import { mainnetConnection } from "@/lib/server/solana";
 import { tokenView } from "@/lib/server/queries";
 import bs58 from "bs58";
 
-const url = z.union([z.literal(""), z.url().max(200)]).optional();
 const Body = z.object({
   signedTransaction: z.string().max(4000),
   mint: z.string().min(32).max(44),
-  name: z.string().trim().min(1).max(32),
-  symbol: z.string().trim().min(1).max(10),
-  description: z.string().max(1000).default(""),
+  name: nameField,
+  symbol: symbolField(10),
+  description: descriptionField,
   metadataUri: z.string().startsWith("https://ipfs.io/ipfs/"),
   imageUri: z.string().startsWith("https://ipfs.io/ipfs/").optional(),
-  website: url,
-  twitter: url,
-  telegram: url,
+  website: socialField("website"),
+  twitter: socialField("twitter"),
+  telegram: socialField("telegram"),
 });
 
 /**

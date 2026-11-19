@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { descriptionField, socialField } from "@/lib/server/launch-input";
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, getMint, getTokenMetadata } from "@solana/spl-token";
 import { requireSession } from "@/lib/server/auth";
@@ -16,16 +17,15 @@ export const GET = handler(async (req: Request) => {
   });
 });
 
-const url = z.union([z.literal(""), z.url().max(200)]).optional();
 const Body = z.object({
   mint: z.string(),
   signature: z.string(),
   metadataUri: z.url(),
   imageUri: z.url().optional(),
-  description: z.string().max(1000).default(""),
-  website: url,
-  twitter: url,
-  telegram: url,
+  description: descriptionField,
+  website: socialField("website"),
+  twitter: socialField("twitter"),
+  telegram: socialField("telegram"),
 });
 
 /**

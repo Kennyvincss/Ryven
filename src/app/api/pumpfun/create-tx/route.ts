@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nameField, symbolField } from "@/lib/server/launch-input";
 import { requireSession } from "@/lib/server/auth";
 import { EngineError } from "@/lib/server/engine/payments";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
@@ -7,10 +8,10 @@ import { requirePumpFunEnabled } from "@/lib/server/pumpfun-routes";
 
 const Body = z.object({
   mint: z.string().min(32).max(44),
-  name: z.string().trim().min(1).max(32),
-  symbol: z.string().trim().min(1).max(10),
+  name: nameField,
+  symbol: symbolField(10),
   uri: z.string().startsWith("https://ipfs.io/ipfs/").max(200),
-  devBuySol: z.number().min(0).max(10),
+  devBuySol: z.number().min(0, "Dev buy can't be negative").max(10, "Dev buy can be at most 10 SOL"),
 });
 
 /** Returns the PumpPortal create transaction (unsigned, validated, simulated) as base64. */

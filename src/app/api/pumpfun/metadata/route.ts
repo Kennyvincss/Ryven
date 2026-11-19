@@ -1,19 +1,19 @@
 import { z } from "zod";
+import { descriptionField, nameField, socialField, symbolField } from "@/lib/server/launch-input";
 import { requireSession } from "@/lib/server/auth";
 import { enforceRateLimit, handler, json } from "@/lib/server/http";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, pinataUpload } from "@/lib/server/metadata";
 import { EngineError } from "@/lib/server/engine/payments";
 import { requirePumpFunEnabled } from "@/lib/server/pumpfun-routes";
 
-const url = z.union([z.literal(""), z.url().max(200)]).optional();
 const Body = z.object({
-  name: z.string().trim().min(1).max(32),
-  symbol: z.string().trim().min(1).max(10).regex(/^[A-Za-z0-9$]+$/),
-  description: z.string().trim().max(1000).default(""),
-  image: z.string().startsWith("data:"),
-  website: url,
-  twitter: url,
-  telegram: url,
+  name: nameField,
+  symbol: symbolField(10),
+  description: descriptionField,
+  image: z.string().startsWith("data:", "Add a coin image"),
+  website: socialField("website"),
+  twitter: socialField("twitter"),
+  telegram: socialField("telegram"),
 });
 
 /** Uploads image + metadata JSON to IPFS (Pinata), in the format PumpPortal documents. */

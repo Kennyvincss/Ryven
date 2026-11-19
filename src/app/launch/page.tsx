@@ -121,6 +121,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
   async function launch() {
     if (mode === "pumpfun") return launchPumpFun();
     setError(null);
+    if (APP_NETWORK === "mainnet" && !ack) return setError("Please confirm you understand this uses real SOL.");
     if (!f.name.trim() || !f.symbol.trim()) return setError("Name and symbol are required.");
     if (!image) return setError("Add a token image.");
     if (!/^\d+$/.test(f.supply) || BigInt(f.supply) <= 0n || BigInt(f.supply) > 1_000_000_000_000n) return setError("Supply must be a whole number up to 1 trillion.");
@@ -194,13 +195,13 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
           </Field>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Website">
-              <Input value={f.website} onChange={set("website")} placeholder="https://" />
+              <Input value={f.website} onChange={set("website")} placeholder="yourcoin.com" />
             </Field>
             <Field label="X / Twitter">
-              <Input value={f.twitter} onChange={set("twitter")} placeholder="https://x.com/…" />
+              <Input value={f.twitter} onChange={set("twitter")} placeholder="@yourcoin or x.com/…" />
             </Field>
             <Field label="Telegram">
-              <Input value={f.telegram} onChange={set("telegram")} placeholder="https://t.me/…" />
+              <Input value={f.telegram} onChange={set("telegram")} placeholder="@yourcoin or t.me/…" />
             </Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -211,8 +212,8 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                   onClick={() => setMode("ryven")}
                   className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", mode === "ryven" ? "border-accent/50 bg-accent/5" : "border-line hover:bg-panel-2")}
                 >
-                  <div className="font-medium">Ryven · fixed supply</div>
-                  <div className="text-xs text-muted">Full supply minted to you, mint authority revoked forever. Supports AI agents.</div>
+                  <div className="font-medium">Fixed supply</div>
+                  <div className="text-xs text-muted">Real Solana coin. Full supply minted to you, mint authority revoked forever. Supports AI agents.</div>
                 </button>
                 {config?.pumpfunEnabled ? (
                   <button
@@ -224,16 +225,16 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                       mode === "pumpfun" ? "border-warn/60 bg-warn/5" : "border-line hover:bg-panel-2",
                     )}
                   >
-                    <div className="font-medium">Bonding-curve launch (real SOL)</div>
+                    <div className="font-medium">Bonding curve</div>
                     <div className="text-xs text-muted">
-                      {config.pumpfunReady ? "Tradable right away on a bonding curve. Agents not supported yet." : "Bonding-curve launches are temporarily unavailable."}
+                      {config.pumpfunReady ? "Real Solana coin, tradable right away on a bonding curve. Agents not supported yet." : "Bonding-curve launches are temporarily unavailable."}
                     </div>
                   </button>
                 ) : (
                   <div className="rounded-xl border border-line px-3 py-2.5 text-sm opacity-60">
                     <div className="font-medium">Bonding curve</div>
                     <div className="text-xs text-muted">
-                      {config?.curveProgramId ? "Program configured; curve launch UI not enabled in this build." : "Requires deploying the ryven_curve program (see docs). Not live on this deployment."}
+                      Coming soon.
                     </div>
                   </div>
                 )}
@@ -250,15 +251,21 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
               </Field>
             )}
           </div>
-          {mode === "pumpfun" && (
+          {APP_NETWORK === "mainnet" && (
             <div className="space-y-3 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
               <div className="flex items-center gap-2 font-semibold text-warn">
-                <TriangleAlert className="size-4" /> This launch uses real SOL
+                <TriangleAlert className="size-4" /> Every launch is a real Solana coin and uses real SOL
               </div>
               <ul className="list-disc space-y-1 pl-5 text-xs text-text/80">
                 <li>Make sure your wallet isn&apos;t in test mode (Phantom: Settings → Developer Settings → Testnet Mode off).</li>
-                <li>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</li>
-                <li>The coin is created through a third-party launch service. Ryven checks the transaction before you sign it.</li>
+                {mode === "pumpfun" ? (
+                  <>
+                    <li>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</li>
+                    <li>The coin is created through a third-party launch service. Ryven checks the transaction before you sign it.</li>
+                  </>
+                ) : (
+                  <li>Costs roughly 0.005 SOL in fees and rent. It can&apos;t be undone.</li>
+                )}
               </ul>
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
@@ -268,15 +275,11 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
-          <Button onClick={launch} loading={busy} size="lg" className="w-full" variant={mode === "pumpfun" ? "secondary" : "primary"}>
-            <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on a bonding curve" : "Launch token"}
+          <Button onClick={launch} loading={busy} size="lg" className="w-full">
+            <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on a bonding curve" : "Launch coin"}
           </Button>
           <p className="text-center text-xs text-faint">
-            {mode === "pumpfun"
-              ? "Your wallet shows the exact transaction before you sign."
-              : APP_NETWORK === "mainnet"
-                ? "Uses real SOL: roughly 0.005 SOL in rent + fees. Your wallet shows the transaction before signing."
-                : "Costs roughly 0.005 test SOL in rent + fees. Your wallet will show the transaction before signing."}
+            {APP_NETWORK === "mainnet" ? "Your wallet shows the exact transaction before you sign." : "Test mode: uses test SOL. Your wallet shows the transaction before signing."}
           </p>
         </div>
       </div>
