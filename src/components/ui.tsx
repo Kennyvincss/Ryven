@@ -4,6 +4,7 @@ import { forwardRef, useState } from "react";
 import { Check, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { explorerAddress, explorerTx, type Network } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
+import { relayedImageSrc } from "@/lib/shared/image-hosts";
 
 export function cn(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -230,16 +231,32 @@ export function AgentAvatar({ seed, size = 40, className }: { seed: string; size
 }
 
 export function TokenImage({ src, symbol, size = 44, className }: { src?: string | null; symbol: string; size?: number; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+  // 0 = load directly (no referrer: some image hosts refuse other sites), 1 = via Ryyven's image relay, 2 = initials.
+  const [st, setSt] = useState<{ src: string | null | undefined; stage: number }>({ src, stage: 0 });
+  const stage = st.src === src ? st.stage : 0;
+  const relay = src && /^https:/i.test(src) ? relayedImageSrc(src) : null;
+  const url = !src ? null : stage === 0 ? src : stage === 1 ? relay : null;
+  if (!url) {
     return (
       <div className={cn("grid shrink-0 place-items-center rounded-xl bg-panel-3 font-mono text-xs font-bold text-muted", className)} style={{ width: size, height: size }}>
         {(size < 28 ? symbol.slice(0, 1) : symbol.slice(0, 3)).toUpperCase()}
       </div>
     );
   }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={symbol} onError={() => setFailed(true)} className={cn("shrink-0 rounded-xl object-cover", className)} style={{ width: size, height: size }} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      key={url}
+      src={url}
+      alt={symbol}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setSt({ src, stage: stage === 0 && relay ? 1 : 2 })}
+      className={cn("shrink-0 rounded-xl object-cover", className)}
+      style={{ width: size, height: size }}
+    />
+  );
 }
 
 export function PageHeader({ title, subtitle, right, eyebrow }: { title: React.ReactNode; subtitle?: React.ReactNode; right?: React.ReactNode; eyebrow?: React.ReactNode }) {
