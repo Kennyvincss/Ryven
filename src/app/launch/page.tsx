@@ -63,7 +63,9 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"ryven" | "pumpfun">("ryven");
+  // New coins launch on a bonding curve only (fixed-supply launches were retired).
+  const mode = "pumpfun" as "ryven" | "pumpfun";
+  const curveReady = !!config?.pumpfunReady;
   const [devBuy, setDevBuy] = useState("0");
   const [ack, setAck] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -206,51 +208,18 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
             </Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Launch on">
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode("ryven")}
-                  className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", mode === "ryven" ? "border-accent/50 bg-accent/5" : "border-line hover:bg-panel-2")}
-                >
-                  <div className="font-medium">Fixed supply</div>
-                  <div className="text-xs text-muted">Real Solana coin. Full supply minted to you, mint authority revoked forever. Supports AI agents.</div>
-                </button>
-                {config?.pumpfunEnabled ? (
-                  <button
-                    type="button"
-                    disabled={!config.pumpfunReady}
-                    onClick={() => setMode("pumpfun")}
-                    className={cn(
-                      "rounded-xl border px-3 py-2.5 text-left text-sm disabled:opacity-50",
-                      mode === "pumpfun" ? "border-warn/60 bg-warn/5" : "border-line hover:bg-panel-2",
-                    )}
-                  >
-                    <div className="font-medium">Bonding curve</div>
-                    <div className="text-xs text-muted">
-                      {config.pumpfunReady ? "Real Solana coin, tradable right away on a bonding curve. Supports AI agents." : "Bonding-curve launches are temporarily unavailable."}
-                    </div>
-                  </button>
-                ) : (
-                  <div className="rounded-xl border border-line px-3 py-2.5 text-sm opacity-60">
-                    <div className="font-medium">Bonding curve</div>
-                    <div className="text-xs text-muted">
-                      Coming soon.
-                    </div>
-                  </div>
-                )}
+            <Field label="Launch type">
+              <div className={cn("rounded-xl border px-3 py-2.5 text-sm", curveReady ? "border-accent/50 bg-accent/5" : "border-line opacity-60")}>
+                <div className="font-medium">Bonding curve</div>
+                <div className="text-xs text-muted">
+                  {curveReady ? "Real Solana coin, tradable right away on a bonding curve. Supports AI agents." : "Launches are temporarily unavailable. Please try again later."}
+                </div>
               </div>
             </Field>
-            {mode === "ryven" ? (
-              <Field label="Total supply" hint={`${LAUNCH_TOKEN_DECIMALS} decimals`}>
-                <Input inputMode="numeric" value={f.supply} onChange={set("supply")} />
-              </Field>
-            ) : (
               <Field label="Dev buy (optional)" hint="SOL you buy at launch">
                 <Input inputMode="decimal" value={devBuy} onChange={(e) => setDevBuy(e.target.value)} />
                 <p className="mt-1.5 text-[11px] text-faint">Supply is 1B with a standard bonding curve. A 0.5% fee applies to the dev buy.</p>
               </Field>
-            )}
           </div>
           {APP_NETWORK === "mainnet" && (
             <RiskNotice
@@ -275,7 +244,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
-          <Button onClick={launch} loading={busy} size="lg" className="w-full">
+          <Button onClick={launch} loading={busy} size="lg" className="w-full" disabled={!curveReady}>
             <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on a bonding curve" : "Launch coin"}
           </Button>
           <p className="text-center text-xs text-faint">

@@ -103,7 +103,15 @@ export async function buildCreateTransaction(p: CreateParams): Promise<{ tx: Ver
  * PumpPortal's router (FAdo9NCw…), which CPIs into pump.fun. The pump.fun program, the
  * pump.fun AMM and the token/system programs are also allowed.
  */
+/**
+ * Lighthouse: an assertion-only program that wallets such as Phantom add to transactions when
+ * signing (it makes the transaction fail if balances don't come out as expected). It cannot move
+ * funds, so it's allowed; the single-signer check and the spend simulation still apply.
+ */
+export const LIGHTHOUSE_PROGRAM = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95";
+
 export const ALLOWED_TRADE_PROGRAMS = new Set([
+  LIGHTHOUSE_PROGRAM,
   "ComputeBudget111111111111111111111111111111",
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
   "FAdo9NCw1ssek6Z6yeWzWjhLVsr8uiCwcWNUnKgzTnHe",

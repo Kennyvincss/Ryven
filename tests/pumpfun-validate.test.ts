@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Keypair, PublicKey, SystemProgram, TransactionInstruction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } from "@solana/web3.js";
-import { validateCreateTransaction } from "../src/lib/server/pumpfun";
+import { validateCreateTransaction, validateTradeTransaction } from "../src/lib/server/pumpfun";
 import { NATIVE_MINT, createAssociatedTokenAccountIdempotentInstruction, createCloseAccountInstruction, createSyncNativeInstruction, createTransferInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { JUPITER_PROGRAM, validateSwapTransaction } from "../src/lib/server/jupiter";
 import { PUMP_PROGRAM_ID } from "../src/lib/shared/config";
@@ -80,5 +80,24 @@ describe("Jupiter swap transaction validation", () => {
     expect(() => validateSwapTransaction(build(wallet, [jupIx(), closeToThief]), wallet.toBase58())).toThrow(/token instruction/);
     const evil = new TransactionInstruction({ programId: Keypair.generate().publicKey, keys: [], data: Buffer.from([]) });
     expect(() => validateSwapTransaction(build(wallet, [jupIx(), evil]), wallet.toBase58())).toThrow(/unexpected program/);
+  });
+});
+
+describe("wallet-added Lighthouse assertions", () => {
+  const LIGHTHOUSE = new PublicKey("L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95");
+  const w = Keypair.generate().publicKey;
+  const lighthouse = new TransactionInstruction({ programId: LIGHTHOUSE, keys: [{ pubkey: w, isSigner: false, isWritable: false }], data: Buffer.from([1, 2]) });
+  it("a Phantom-signed trade with a Lighthouse assertion is accepted", () => {
+    const pump = new TransactionInstruction({ programId: new PublicKey(PUMP_PROGRAM_ID), keys: [{ pubkey: w, isSigner: true, isWritable: true }], data: Buffer.from([3]) });
+    expect(() => validateTradeTransaction(build(w, [pump, lighthouse]), w.toBase58())).not.toThrow();
+  });
+  it("a Phantom-signed Jupiter swap with a Lighthouse assertion is accepted", () => {
+    const jup = new TransactionInstruction({ programId: new PublicKey(JUPITER_PROGRAM), keys: [{ pubkey: w, isSigner: true, isWritable: true }], data: Buffer.from([9]) });
+    expect(() => validateSwapTransaction(build(w, [jup, lighthouse]), w.toBase58())).not.toThrow();
+  });
+  it("other unknown programs are still refused", () => {
+    const evil = new TransactionInstruction({ programId: Keypair.generate().publicKey, keys: [], data: Buffer.from([]) });
+    const pump = new TransactionInstruction({ programId: new PublicKey(PUMP_PROGRAM_ID), keys: [{ pubkey: w, isSigner: true, isWritable: true }], data: Buffer.from([3]) });
+    expect(() => validateTradeTransaction(build(w, [pump, evil]), w.toBase58())).toThrow(/unexpected program/);
   });
 });

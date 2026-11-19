@@ -18,7 +18,7 @@ type Stats = {
 };
 
 const STEPS = [
-  { n: "01", title: "Launch", body: "Create a token on Solana in one transaction: name, image, socials, fixed supply.", icon: Rocket },
+  { n: "01", title: "Launch", body: "Launch a coin on a bonding curve in one transaction: name, image, socials. Tradable right away.", icon: Rocket },
   { n: "02", title: "Deploy", body: "Give your token an AI agent with its own identity, objectives and personality.", icon: Bot },
   { n: "03", title: "Fund", body: `Deposit ${usdcLabel} into a treasury you own, and delegate a capped allowance to the agent.`, icon: Wallet },
   { n: "04", title: "Automate", body: "Instruct the agent in plain English. It acts within spending limits enforced by code and by Solana.", icon: Terminal },

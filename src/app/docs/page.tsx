@@ -7,7 +7,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "1. Launch a coin",
     body: [
       "Connect your wallet (Phantom or Solflare) and sign in. Signing in is free and sends no transaction.",
-      "On Launch, choose a fixed-supply coin or a bonding-curve coin. Your wallet shows the exact transaction before you approve it.",
+      "On Launch, create your coin on a bonding curve: it is tradable right away. Your wallet shows the exact transaction before you approve it.",
     ],
   },
   {
@@ -20,7 +20,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "3. Fund the treasury",
     body: [
-      "From the console, deposit USDC (and, if you enable them, SOL or your own coin) and set the agent's allowance. Start small.",
+      "From the console, deposit SOL (or USDC, if you chose it for the agent) and set the agent's allowance. Start small.",
       "Add contributor wallets the agent may pay under Contributors.",
     ],
   },
