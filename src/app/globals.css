@@ -13,7 +13,7 @@
   --color-faint: #5b6174;
   --color-accent: #c6ff3d;
   --color-accent-2: #6fe0b4;
-  --color-agent: #9585ff;
+  --color-agent: #7af0c8;
   --color-warn: #f5c063;
   --color-danger: #ff6b7a;
   --color-info: #6cb8ff;
@@ -29,7 +29,10 @@ html {
   background: var(--color-bg);
 }
 body {
-  background: var(--color-bg);
+  /* brand glow: a faint Volt light at the top of every page */
+  background:
+    radial-gradient(900px 420px at 50% -180px, rgba(198, 255, 61, 0.075), transparent 70%),
+    var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -46,11 +49,11 @@ body {
   mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 75%);
 }
 .glow-accent {
-  background: radial-gradient(600px 260px at 50% 0%, color-mix(in oklab, var(--color-accent) 16%, transparent), transparent 70%),
-    radial-gradient(500px 240px at 85% 10%, color-mix(in oklab, var(--color-agent) 16%, transparent), transparent 70%);
+  background: radial-gradient(700px 320px at 20% 0%, color-mix(in oklab, var(--color-accent) 14%, transparent), transparent 70%),
+    radial-gradient(520px 300px at 85% 20%, color-mix(in oklab, var(--color-accent) 10%, transparent), transparent 70%);
 }
 .text-gradient {
-  background: linear-gradient(100deg, var(--color-accent) 10%, var(--color-accent-2) 45%, var(--color-agent) 90%);
+  background: linear-gradient(100deg, #f4ffd6 0%, var(--color-accent) 55%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

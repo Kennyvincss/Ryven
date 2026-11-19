@@ -104,7 +104,7 @@ export function TradeBox({ mint, symbol, decimals: knownDecimals }: { mint: stri
     }
   }
 
-  if (APP_NETWORK !== "mainnet") return <Alert tone="info">Trading is available on Solana mainnet.</Alert>;
+  if (APP_NETWORK !== "mainnet") return <Alert tone="info">Trading is not available in test mode.</Alert>;
 
   const solBal = bal ? fromRaw(bal.lamports, 9) : null;
   const tokBal = bal ? fromRaw(bal.tokenRaw, decimals) : null;
@@ -230,7 +230,7 @@ export function TradeBox({ mint, symbol, decimals: knownDecimals }: { mint: stri
         </Alert>
       )}
       <p className="text-[11px] leading-relaxed text-faint">
-        Real SOL on Solana mainnet. Ryven checks every transaction before your wallet signs it: it can only swap your own funds, and a mainnet simulation
+        Real SOL on Solana. Ryven checks every transaction before your wallet signs it: it can only swap your own funds, and a simulation
         must show you won&apos;t lose more than the amount you entered plus fees. Memecoins are extremely risky.
       </p>
     </div>

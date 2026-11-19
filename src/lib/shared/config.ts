@@ -41,7 +41,8 @@ export const publicConfig = {
   },
 };
 
-export const networkLabel = APP_NETWORK === "mainnet" ? "Mainnet" : "Devnet (test mode)";
+/** Shown to users: just "Solana" normally; the hidden test mode is labelled as such. */
+export const networkLabel = APP_NETWORK === "mainnet" ? "Solana" : "Devnet (test mode)";
 
 /** USDC mint used by agent treasuries on each network. */
 export const usdcMintFor = (network: Network) =>

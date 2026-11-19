@@ -108,7 +108,7 @@ function Console({ id }: { id: string }) {
               <h1 className="text-xl font-semibold">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous mode" : "Approval mode"}</Badge>
-              {a.network === "mainnet" && <Badge tone="warn">Mainnet · real USDC</Badge>}
+              {a.network === "mainnet" && <Badge tone="warn">Real USDC</Badge>}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               {d.token && (

@@ -5,7 +5,7 @@ import { VersionedTransaction } from "@solana/web3.js";
 import { ArrowUpFromLine, CandlestickChart, Coins, ExternalLink, TriangleAlert } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useApi } from "@/lib/client/hooks";
-import { explorerTx, pumpFunCoinUrl } from "@/lib/shared/config";
+import { explorerTx } from "@/lib/shared/config";
 import { shortAddress } from "@/lib/shared/amounts";
 import { AddressLink, Alert, Badge, Button, Empty, Field, Input, Spinner, Stat, Textarea, cn, timeAgo } from "./ui";
 
@@ -44,7 +44,7 @@ function TradeLabel({ t, link }: { t: TradeView; link?: boolean }) {
     <>
       {badge} <span className="font-mono">{t.amount}</span> of{" "}
       {link ? (
-        <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="font-mono underline">
+        <a href={`/trade/${t.mint}`} className="font-mono underline">
           {shortAddress(t.mint, 5)}
         </a>
       ) : (
@@ -85,7 +85,7 @@ export function TradingPanel({ agentId }: { agentId: string }) {
       const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0)));
       const signed = await wallet.signTransaction(tx);
       const r = await api<{ trade: TradeView }>(`/api/trades/${t.id}/submit`, { json: { signedTransaction: btoa(String.fromCharCode(...signed.serialize())) } });
-      setMsg({ ok: r.trade.status === "confirmed", text: r.trade.status === "confirmed" ? "Trade confirmed on mainnet." : `Trade ${r.trade.status}: ${r.trade.error ?? ""}` });
+      setMsg({ ok: r.trade.status === "confirmed", text: r.trade.status === "confirmed" ? "Trade confirmed on Solana." : `Trade ${r.trade.status}: ${r.trade.error ?? ""}` });
     } catch (e) {
       const m = (e as Error).message;
       setMsg({ ok: false, text: /User rejected|rejected the request/i.test(m) ? "You rejected the trade in your wallet. Nothing was spent." : m });
@@ -100,7 +100,7 @@ export function TradingPanel({ agentId }: { agentId: string }) {
     setMsg(null);
     try {
       await api(path, { method: "POST" });
-      setMsg({ ok: true, text: label === "withdraw" ? "Withdrawal sent to your wallet on mainnet." : "Done." });
+      setMsg({ ok: true, text: label === "withdraw" ? "Withdrawal sent to your wallet." : "Done." });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -116,8 +116,8 @@ export function TradingPanel({ agentId }: { agentId: string }) {
 
   return (
     <div className="space-y-5 p-5">
-      <Alert tone="warn" title="Trading uses real SOL on Solana mainnet">
-        Your wallet must be on <b>Mainnet</b> to sign trades. Configure limits under Permissions.
+      <Alert tone="warn" title="Trading uses real SOL">
+        Your wallet signs each trade you approve. Limits are under Permissions.
       </Alert>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Mode" value={d.settings.mode} />
@@ -130,7 +130,7 @@ export function TradingPanel({ agentId }: { agentId: string }) {
         <div className="rounded-xl border border-line bg-panel-2 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-sm font-semibold">Agent trading wallet (mainnet)</div>
+              <div className="text-sm font-semibold">Agent trading wallet</div>
               <div className="mt-0.5 text-xs text-muted">
                 Send SOL here to let the agent trade. It can only trade allowlisted coins within your limits.
               </div>
@@ -147,7 +147,7 @@ export function TradingPanel({ agentId }: { agentId: string }) {
             <ul className="mt-2 space-y-1 text-xs text-muted">
               {d.wallet.tokens.map((t) => (
                 <li key={t.mint} className="flex justify-between">
-                  <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="font-mono hover:text-text">{shortAddress(t.mint, 6)}</a>
+                  <a href={`/trade/${t.mint}`} className="font-mono hover:text-text">{shortAddress(t.mint, 6)}</a>
                   <span className="font-mono">{t.amount}</span>
                 </li>
               ))}
@@ -322,7 +322,7 @@ export function TradingSettings({
   return (
     <div className="space-y-4 border-t border-line p-5">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <CandlestickChart className="size-4 text-warn" /> pump.fun trading (mainnet, real SOL)
+        <CandlestickChart className="size-4 text-warn" /> Memecoin trading (real SOL)
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         {(
@@ -354,7 +354,7 @@ export function TradingSettings({
             </Field>
           </div>
           <Field label="Other allowed coins" hint="your own coin is always allowed · one address per line">
-            <Textarea value={f.mints} onChange={(e) => setF({ ...f, mints: e.target.value })} placeholder="e.g. your coin launched on pump.fun" />
+            <Textarea value={f.mints} onChange={(e) => setF({ ...f, mints: e.target.value })} placeholder="Coin addresses, one per line" />
           </Field>
         </>
       )}

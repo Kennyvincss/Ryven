@@ -39,7 +39,7 @@ export function Navbar() {
                 href={n.href}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm transition-colors",
-                  path.startsWith(n.href) ? "bg-panel-2 text-text" : "text-muted hover:text-text",
+                  path.startsWith(n.href) ? "bg-accent/10 text-accent" : "text-muted hover:text-text",
                 )}
               >
                 {n.label}
@@ -48,9 +48,11 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
-          <span className="hidden rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-accent sm:inline">
-            {networkLabel}
-          </span>
+          {APP_NETWORK !== "mainnet" && (
+            <span className="hidden rounded-full border border-warn/30 bg-warn/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-warn sm:inline">
+              {networkLabel}
+            </span>
+          )}
           <WalletButton />
           <button className="grid size-10 place-items-center rounded-xl border border-line-2 md:hidden" onClick={() => setOpen((o) => !o)} aria-label="Menu">
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
@@ -83,10 +85,10 @@ export function Footer() {
           <Link href="/" aria-label="Ryven home">
             <RyvenLogo size={30} tagline />
           </Link>
-          <p className="mt-3 max-w-xs text-sm text-muted">Launch Tokens. Deploy Agents. Automate Economies. Built on Solana.</p>
+          <p className="mt-3 max-w-xs text-sm text-muted">The memecoin terminal with an AI agent. Trade live, launch coins, let your agent run the rest. Built on Solana.</p>
           <p className="mt-4 text-xs text-faint">
-            Running on Solana {networkLabel.toLowerCase()}{APP_NETWORK === "mainnet" ? ": transactions use real SOL and USDC." : " with test funds."} Agent
-            payments use Solana&apos;s standard token program; pump.fun trades go through PumpPortal.
+            Running on Solana{APP_NETWORK === "mainnet" ? ": transactions use real SOL and USDC." : " (test mode, test funds)."} Agent
+            payments use Solana&apos;s standard token program.
           </p>
         </div>
         {cols.map((c) => (

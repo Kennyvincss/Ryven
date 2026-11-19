@@ -9,7 +9,7 @@ import { sendWalletTransaction } from "@/lib/client/wallet-tx";
 import { useAppConfig } from "@/lib/client/hooks";
 import { buildLaunchTransaction, TOKEN_LIMITS } from "@/lib/solana/launch";
 import { toBaseUnits } from "@/lib/shared/amounts";
-import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS, explorerTx, networkLabel, pumpFunCoinUrl } from "@/lib/shared/config";
+import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS, explorerTx } from "@/lib/shared/config";
 import { AuthGate } from "@/components/wallet-button";
 import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
 import { FundTreasury } from "@/components/treasury-actions";
@@ -73,7 +73,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
     if (!f.name.trim() || !f.symbol.trim()) return setError("Name and symbol are required.");
     if (!image) return setError("Add a coin image.");
     if (!/^\d+(\.\d{1,9})?$/.test(devBuy) || Number(devBuy) > 10) return setError("Dev buy must be a SOL amount between 0 and 10.");
-    if (!ack) return setError("Please confirm you understand this uses real SOL on mainnet.");
+    if (!ack) return setError("Please confirm you understand this uses real SOL.");
     if (!wallet.signTransaction) return setError("This wallet can't sign transactions for this flow. Try Phantom or Solflare.");
     setBusy(true);
     try {
@@ -83,16 +83,16 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
       const meta = await api<{ metadataUri: string; imageUri: string }>("/api/pumpfun/metadata", {
         json: { name, symbol, description: f.description, image, website: f.website, twitter: f.twitter, telegram: f.telegram },
       });
-      setStatus("Building and checking the pump.fun transaction (simulated on mainnet)…");
+      setStatus("Building and checking the launch transaction (simulated on Solana first)…");
       const mint = Keypair.generate();
       const { transaction } = await api<{ transaction: string }>("/api/pumpfun/create-tx", {
         json: { mint: mint.publicKey.toBase58(), name, symbol, uri: meta.metadataUri, devBuySol: Number(devBuy) },
       });
       const tx = VersionedTransaction.deserialize(Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0)));
       tx.sign([mint]);
-      setStatus("Approve the launch in your wallet (make sure it's on Solana MAINNET)…");
+      setStatus("Approve the launch in your wallet…");
       const signed = await wallet.signTransaction(tx);
-      setStatus("Sending to Solana mainnet and waiting for confirmation…");
+      setStatus("Sending to Solana and waiting for confirmation…");
       const signedB64 = btoa(String.fromCharCode(...signed.serialize()));
       const r = await api<{ token: Token; signature: string }>("/api/pumpfun/submit", {
         json: {
@@ -224,9 +224,9 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                       mode === "pumpfun" ? "border-warn/60 bg-warn/5" : "border-line hover:bg-panel-2",
                     )}
                   >
-                    <div className="font-medium">pump.fun · mainnet (real SOL)</div>
+                    <div className="font-medium">Bonding-curve launch (real SOL)</div>
                     <div className="text-xs text-muted">
-                      {config.pumpfunReady ? "Shows on pump.fun with its bonding curve. Agents not supported yet." : "pump.fun launches are temporarily unavailable."}
+                      {config.pumpfunReady ? "Tradable right away on a bonding curve. Agents not supported yet." : "Bonding-curve launches are temporarily unavailable."}
                     </div>
                   </button>
                 ) : (
@@ -246,30 +246,30 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
             ) : (
               <Field label="Dev buy (optional)" hint="SOL you buy at launch">
                 <Input inputMode="decimal" value={devBuy} onChange={(e) => setDevBuy(e.target.value)} />
-                <p className="mt-1.5 text-[11px] text-faint">pump.fun sets the supply (1B) and curve. PumpPortal charges 0.5% on the dev buy.</p>
+                <p className="mt-1.5 text-[11px] text-faint">Supply is 1B with a standard bonding curve. A 0.5% fee applies to the dev buy.</p>
               </Field>
             )}
           </div>
           {mode === "pumpfun" && (
             <div className="space-y-3 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
               <div className="flex items-center gap-2 font-semibold text-warn">
-                <TriangleAlert className="size-4" /> This launch uses real SOL on Solana mainnet
+                <TriangleAlert className="size-4" /> This launch uses real SOL
               </div>
               <ul className="list-disc space-y-1 pl-5 text-xs text-text/80">
-                <li>Switch your wallet to <b>Solana Mainnet</b> (Phantom: turn Testnet Mode off).</li>
+                <li>Make sure your wallet isn&apos;t in test mode (Phantom: Settings → Developer Settings → Testnet Mode off).</li>
                 <li>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</li>
-                <li>The coin is created by pump.fun&apos;s program through PumpPortal (a third-party API). Ryven checks the transaction before you sign it.</li>
+                <li>The coin is created through a third-party launch service. Ryven checks the transaction before you sign it.</li>
               </ul>
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
-                I understand this spends real SOL and creates a public coin on pump.fun.
+                I understand this spends real SOL and creates a public coin.
               </label>
             </div>
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
           <Button onClick={launch} loading={busy} size="lg" className="w-full" variant={mode === "pumpfun" ? "secondary" : "primary"}>
-            <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on pump.fun (mainnet)" : "Launch token"}
+            <Rocket className="size-4" /> {mode === "pumpfun" ? "Launch on a bonding curve" : "Launch token"}
           </Button>
           <p className="text-center text-xs text-faint">
             {mode === "pumpfun"
@@ -300,7 +300,7 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
   const set = (k: keyof typeof p) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP({ ...p, [k]: e.target.value });
 
   async function deploy() {
-    if (isMainnet && !ack) return setError("Please confirm you understand this agent will move real USDC on mainnet.");
+    if (isMainnet && !ack) return setError("Please confirm you understand this agent will move real USDC.");
     setBusy(true);
     setError(null);
     try {
@@ -346,7 +346,7 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
         {isMainnet && (
           <div className="space-y-2 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
             <div className="flex items-center gap-2 font-semibold text-warn">
-              <TriangleAlert className="size-4" /> This agent runs on Solana mainnet with real USDC
+              <TriangleAlert className="size-4" /> This agent moves real USDC
             </div>
             <p className="text-xs text-text/80">
               Its treasury is a USDC account you own; it can only spend the allowance you give it, within the limits above. Start small. Ryven
@@ -372,12 +372,12 @@ function PumpFunSuccess({ token }: { token: Token }) {
     <Card className="mb-4 p-6 text-center">
       <TokenImage src={token.imageUri} symbol={token.symbol} size={72} className="mx-auto rounded-2xl" />
       <h2 className="mt-4 text-xl font-semibold">
-        {token.name} <span className="font-mono text-muted">${token.symbol}</span> is live on pump.fun
+        {token.name} <span className="font-mono text-muted">${token.symbol}</span> is live
       </h2>
-      <p className="mt-1 text-sm text-muted">Created on Solana mainnet. It can take a minute to appear on pump.fun.</p>
+      <p className="mt-1 text-sm text-muted">Created on Solana. It can take a minute to show up everywhere.</p>
       <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
-        <Button href={pumpFunCoinUrl(token.mint)}>
-          View on pump.fun <ExternalLink className="size-3.5" />
+        <Button href={`/trade/${token.mint}`}>
+          Open trading page
         </Button>
         <Button variant="secondary" href={explorerTx(token.launchSignature, "mainnet")}>
           Launch transaction <ExternalLink className="size-3.5" />
@@ -386,7 +386,7 @@ function PumpFunSuccess({ token }: { token: Token }) {
           Ryven page
         </Button>
       </div>
-      <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). On mainnet it pays in real USDC.</p>
+      <p className="mt-5 text-xs text-faint">Next: deploy an AI agent for this coin below (optional). It pays in real USDC.</p>
     </Card>
   );
 }
@@ -463,7 +463,7 @@ function LaunchFlow() {
 export default function LaunchPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <PageHeader eyebrow="Launchpad" title="Launch a token & deploy its agent" subtitle={`Three wallet-approved steps, recorded on Solana ${networkLabel.toLowerCase()}.${APP_NETWORK === "mainnet" ? " Real SOL and USDC." : ""}`} />
+      <PageHeader eyebrow="Launchpad" title="Launch a token & deploy its agent" subtitle={`Three wallet-approved steps, recorded on Solana.${APP_NETWORK === "mainnet" ? " Real SOL and USDC." : " Test mode."}`} />
       <AuthGate reason="Launching a token and deploying an agent require a signed-in wallet. Signing in is free and sends no transaction.">
         <Suspense fallback={<Spinner />}>
           <LaunchFlow />

@@ -50,7 +50,7 @@ export function validateCreateTransaction(tx: VersionedTransaction, creator: str
   if (keys[0] !== creator) throw new PumpFunError("Fee payer is not your wallet");
   if (keys[1] !== mint) throw new PumpFunError("Second signer is not the new coin's mint");
   const programs = new Set(msg.compiledInstructions.map((ix) => keys[ix.programIdIndex]));
-  if (!programs.has(PUMP_PROGRAM_ID)) throw new PumpFunError("Transaction does not call the pump.fun program");
+  if (!programs.has(PUMP_PROGRAM_ID)) throw new PumpFunError("Transaction does not call the launch program");
   const unknown = [...programs].filter((p) => p === undefined || !ALLOWED_CREATE_PROGRAMS.has(p));
   if (unknown.length) throw new PumpFunError(`Transaction calls an unexpected program: ${unknown.join(", ")}`);
 }
@@ -87,10 +87,10 @@ export async function buildCreateTransaction(p: CreateParams): Promise<{ tx: Ver
     const text = JSON.stringify(sim.value.err) + " " + logs.join(" ");
     if (/insufficient lamports|InsufficientFunds|"AccountNotFound"|Attempt to debit an account but found no record/i.test(text)) {
       throw new PumpFunError(
-        `Your wallet doesn't have enough mainnet SOL for this launch${p.devBuySol ? ` (including the ${p.devBuySol} SOL dev buy)` : ""}. Add SOL to your wallet on Solana mainnet and try again.`,
+        `Your wallet doesn't have enough SOL for this launch${p.devBuySol ? ` (including the ${p.devBuySol} SOL dev buy)` : ""}. Add SOL to your wallet and try again.`,
       );
     }
-    throw new PumpFunError(`Mainnet simulation failed: ${JSON.stringify(sim.value.err)}. ${logs.slice(-2).join(" ")}`);
+    throw new PumpFunError(`Simulation failed: ${JSON.stringify(sim.value.err)}. ${logs.slice(-2).join(" ")}`);
   }
   return { tx, simulationLogs: sim.value.logs ?? [] };
 }
@@ -137,7 +137,7 @@ export function validateTradeTransaction(tx: VersionedTransaction, wallet: strin
 export async function poolFor(mint: string): Promise<"pump" | "pump-amm"> {
   const { readPumpCurve } = await import("./market");
   const curve = await readPumpCurve(mint).catch(() => null);
-  if (!curve) throw new PumpFunError("Only pump.fun coins can be traded (no pump.fun bonding curve found for this mint).");
+  if (!curve) throw new PumpFunError("Only bonding-curve coins can be traded here (no bonding curve found for this coin).");
   return curve.complete ? "pump-amm" : "pump";
 }
 
@@ -162,7 +162,7 @@ export async function buildTradeTransaction(t: TradeRequest): Promise<VersionedT
   if (res.status !== 200) {
     const text = (await res.text()).slice(0, 200);
     throw new PumpFunError(
-      `PumpPortal could not build the ${t.action} (${res.status} ${res.statusText})${text ? `: ${text}` : ""}. The coin may have no balance to sell, or may have left the pump.fun curve.`,
+      `PumpPortal could not build the ${t.action} (${res.status} ${res.statusText})${text ? `: ${text}` : ""}. The coin may have no balance to sell, or may have left its bonding curve.`,
     );
   }
   const tx = VersionedTransaction.deserialize(new Uint8Array(await res.arrayBuffer()));
@@ -191,9 +191,9 @@ export async function simulateSpend(tx: VersionedTransaction, t: TradeRequest): 
   if (sim.value.err) {
     const text = JSON.stringify(sim.value.err) + " " + (sim.value.logs ?? []).join(" ");
     if (/insufficient lamports|InsufficientFunds|AccountNotFound|no record of a prior credit/i.test(text)) {
-      throw new PumpFunError("The trading wallet doesn't have enough mainnet SOL for this trade.");
+      throw new PumpFunError("The trading wallet doesn't have enough SOL for this trade.");
     }
-    throw new PumpFunError(`Mainnet simulation failed: ${JSON.stringify(sim.value.err)}`);
+    throw new PumpFunError(`Simulation failed: ${JSON.stringify(sim.value.err)}`);
   }
   const post = BigInt(sim.value.accounts?.[0]?.lamports ?? Number(pre));
   const spend = pre - post;

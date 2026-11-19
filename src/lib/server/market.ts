@@ -103,7 +103,7 @@ export async function dexScreener(mint: string): Promise<DexPair | null> {
 
 export type MarketData = {
   mint: string;
-  source: "pump.fun bonding curve (on-chain)" | "dexscreener" | "none";
+  source: "bonding curve (on-chain)" | "dexscreener" | "none";
   priceSol: number | null;
   priceUsd: number | null;
   marketCapSol: number | null;
@@ -152,7 +152,7 @@ export async function getMarketData(mint: string): Promise<MarketData> {
     const sold = PUMP_INITIAL_REAL_TOKENS > curve.realTokenReserves ? PUMP_INITIAL_REAL_TOKENS - curve.realTokenReserves : 0n;
     return {
       ...base,
-      source: "pump.fun bonding curve (on-chain)",
+      source: "bonding curve (on-chain)",
       priceSol,
       priceUsd: sol ? priceSol * sol.price : null,
       marketCapSol: priceSol * supply,
@@ -183,6 +183,6 @@ export async function getMarketData(mint: string): Promise<MarketData> {
   return {
     ...base,
     graduated: curve ? curve.complete : null,
-    note: "No market found: the token has no pump.fun curve and no DEX pool, so it has no price yet.",
+    note: "No market found: the token has no bonding curve and no DEX pool, so it has no price yet.",
   };
 }

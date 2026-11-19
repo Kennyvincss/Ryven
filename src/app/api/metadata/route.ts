@@ -25,7 +25,9 @@ export const POST = handler(async (req: Request) => {
   const b = Body.parse(await req.json());
   if (APP_NETWORK === "mainnet" && !serverEnv.pinataJwt && /localhost|127\.0\.0\.1/.test(publicConfig.appUrl)) {
     throw new EngineError(
-      "On mainnet the coin's image and metadata must be publicly reachable. Set PINATA_JWT (free at app.pinata.cloud) or deploy Ryven to a public URL (NEXT_PUBLIC_APP_URL).",
+      process.env.NODE_ENV !== "production"
+        ? "The coin's image and metadata must be publicly reachable. Set PINATA_JWT (free at app.pinata.cloud) or deploy Ryven to a public URL (NEXT_PUBLIC_APP_URL)."
+        : "Coin images can't be uploaded right now. Please try again later.",
       503,
     );
   }

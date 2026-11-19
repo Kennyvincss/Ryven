@@ -77,7 +77,7 @@ export const POST = handler(async (req: Request) => {
 
   const mintPk = new PublicKey(b.mint);
   const info = await conn.getAccountInfo(mintPk, "confirmed");
-  if (!info) throw new EngineError("Coin mint not found on mainnet after confirmation", 502);
+  if (!info) throw new EngineError("The new coin was not found on Solana after confirmation", 502);
   const mint = await getMint(conn, mintPk, "confirmed", info.owner);
   let name = b.name;
   let symbol = b.symbol;

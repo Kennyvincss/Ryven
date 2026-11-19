@@ -155,14 +155,14 @@ export function FundTreasury({ agent, onDone, compact, spec }: { agent: AgentRef
       </div>
       {usdcBal === "0" && isToken && <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>Connect the wallet that holds the token supply.</Alert>}
       {(agent.network ?? APP_NETWORK) === "mainnet" && !compact && (
-        <Alert tone="warn" title="Mainnet: real money">
-          This treasury holds real {t.unit}. Your wallet must be on Solana Mainnet, and only delegate what you&apos;re comfortable letting the agent spend.
+        <Alert tone="warn" title="Real money">
+          This treasury holds real {t.unit}. Only delegate what you&apos;re comfortable letting the agent spend.
         </Alert>
       )}
       {usdcBal === "0" && !isToken && !isSol && (
         <Alert tone="warn" title={`You have no ${t.unit} in this wallet`}>
           {(agent.network ?? APP_NETWORK) === "mainnet" ? (
-            <>Buy or swap for USDC (e.g. in Phantom&apos;s swap or on jup.ag) and send it to this wallet on Solana mainnet.</>
+            <>Buy or swap for USDC (e.g. in Phantom&apos;s swap or on jup.ag) and send it to this wallet.</>
           ) : publicConfig.usdcMint === CIRCLE_DEVNET_USDC ? (
             <>
               Get test USDC from{" "}

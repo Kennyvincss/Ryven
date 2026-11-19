@@ -193,7 +193,7 @@ export function AgentTerminal({
   }
 
   return (
-    <div className="flex h-[620px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-[#090b10]">
+    <div className="flex h-[620px] flex-col overflow-hidden rounded-[var(--radius-card)] border border-white/[0.07] bg-[#07090b] shadow-[0_0_60px_-30px_rgba(198,255,61,0.35)]">
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <div className="flex items-center gap-2.5">
           <AgentAvatar seed={avatarSeed} size={28} />
@@ -313,7 +313,7 @@ export function AgentTerminal({
             placeholder={`Instruct ${agentName}…`}
             className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent py-1 font-mono text-[13px] outline-none placeholder:text-faint"
           />
-          <button type="submit" disabled={running || !input.trim()} className="grid size-8 place-items-center rounded-lg bg-agent text-white disabled:opacity-40">
+          <button type="submit" disabled={running || !input.trim()} className="grid size-8 place-items-center rounded-lg bg-accent text-black disabled:opacity-40">
             {running ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
           </button>
         </form>

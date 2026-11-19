@@ -47,7 +47,7 @@ export async function mintInfo(mint: string): Promise<{ decimals: number; progra
   if (mint === SOL_MINT) return { decimals: 9, programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") };
   const acc = await mainnetConnection().getParsedAccountInfo(new PublicKey(mint), "confirmed");
   const data = acc.value?.data as ParsedAccountData | undefined;
-  if (!acc.value || data?.parsed?.type !== "mint") throw new SwapError(`${mint} is not a token mint on mainnet`);
+  if (!acc.value || data?.parsed?.type !== "mint") throw new SwapError(`${mint} is not a token on Solana`);
   return { decimals: data.parsed.info.decimals as number, programId: acc.value.owner };
 }
 
@@ -164,7 +164,7 @@ export async function simulateSwapSpend(tx: VersionedTransaction, wallet: string
     if (/insufficient lamports|InsufficientFunds|insufficient funds|AccountNotFound|no record of a prior credit/i.test(text)) {
       throw new SwapError("The swapping wallet doesn't have enough of the input token (or SOL for fees).");
     }
-    throw new SwapError(`Mainnet simulation failed: ${JSON.stringify(sim.value.err)}`);
+    throw new SwapError(`Simulation failed: ${JSON.stringify(sim.value.err)}`);
   }
   const accts = sim.value.accounts ?? [];
   const postLamports = BigInt(accts[0]?.lamports ?? Number(preLamports));

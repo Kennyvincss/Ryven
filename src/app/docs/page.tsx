@@ -7,7 +7,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "1. Launch a coin",
     body: [
       "Connect your wallet (Phantom or Solflare) and sign in. Signing in is free and sends no transaction.",
-      "On Launch, choose a fixed-supply Ryven coin or a pump.fun coin. Your wallet shows the exact transaction before you approve it.",
+      "On Launch, choose a fixed-supply coin or a bonding-curve coin. Your wallet shows the exact transaction before you approve it.",
     ],
   },
   {
@@ -52,7 +52,7 @@ export default function Page() {
       <h1 className="text-3xl font-semibold tracking-tight">How Ryven works</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-muted">
         Ryven lets you launch a Solana coin and give it an AI agent that can pay contributors from a treasury you control, within limits you set.
-        Everything runs on Solana mainnet with real funds.
+        Everything runs on Solana with real funds.
       </p>
       <div className="mt-8 space-y-8">
         {SECTIONS.map((s) => (

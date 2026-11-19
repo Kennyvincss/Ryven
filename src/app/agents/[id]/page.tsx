@@ -54,7 +54,7 @@ export default function AgentProfile() {
               <h1 className="text-2xl font-semibold tracking-tight">{a.name}</h1>
               {a.status === "active" ? <Badge tone="accent" dot>Active</Badge> : <Badge tone="warn">Paused</Badge>}
               <Badge tone="agent">{a.mode === "autonomous" ? "Autonomous" : "Approval mode"}</Badge>
-              {a.network === "mainnet" && <Badge tone="warn">Solana mainnet</Badge>}
+              {a.network === "mainnet" && <Badge tone="warn">Real USDC</Badge>}
             </div>
             <p className="mt-1.5 max-w-2xl text-sm text-muted">{a.description}</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">

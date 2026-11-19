@@ -65,7 +65,7 @@ export function assessPortfolio(holdings: PricedHolding[], solBalance: number): 
         if (h.mintAuthorityDisabled === false) flags.push("mint authority still enabled: supply can be inflated");
         if (h.freezeAuthorityDisabled === false) flags.push("freeze authority still enabled: tokens can be frozen");
         if (h.topHoldersPct != null && h.topHoldersPct >= 50) flags.push(`top holders own ${round(h.topHoldersPct, 1)}% of supply`);
-        if (h.onBondingCurve) flags.push("still on the pump.fun bonding curve (not graduated)");
+        if (h.onBondingCurve) flags.push("still on its bonding curve (not graduated)");
       }
       if (h.usdValue !== null && h.usdValue < DUST_USD) flags.push("dust (< $1)");
       return { ...h, usdValue: h.usdValue !== null ? round(h.usdValue) : null, pct: pct !== null ? round(pct, 1) : null, flags };

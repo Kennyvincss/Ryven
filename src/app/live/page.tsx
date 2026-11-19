@@ -12,7 +12,7 @@ import { APP_NETWORK, explorerTx } from "@/lib/shared/config";
 
 type ColumnKey = "newPairs" | "aboutToGraduate" | "graduated";
 const COLUMNS: { key: ColumnKey; title: string; hint: string }[] = [
-  { key: "newPairs", title: "New pairs", hint: "Just launched on pump.fun" },
+  { key: "newPairs", title: "New pairs", hint: "Just launched" },
   { key: "aboutToGraduate", title: "About to graduate", hint: "Bonding curve almost complete" },
   { key: "graduated", title: "Graduated", hint: "Moved to a DEX pool" },
 ];
@@ -72,7 +72,7 @@ function Column({
   const list = q ? shown.filter((c) => c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.mint.toLowerCase() === q) : shown;
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-card)] border border-white/[0.07] bg-panel bg-gradient-to-b from-white/[0.035] to-white/[0.005]">
       <header className="flex items-center justify-between border-b border-line px-3 py-2.5">
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
@@ -252,10 +252,16 @@ export default function LivePage() {
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Radio className="size-5 text-accent" /> Live
+          <div className="mb-3 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-accent">
+            <span className="text-faint">Ryven /</span> Live terminal
+            <span className="ml-1 inline-flex items-center gap-1.5 text-accent">
+              <span className="animate-pulse-dot size-1.5 rounded-full bg-accent" />
+            </span>
+          </div>
+          <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            <Radio className="size-6 text-accent" /> Live
           </h1>
-          <p className="mt-1 text-sm text-muted">pump.fun coins as they launch, approach graduation and graduate. Updates every few seconds.</p>
+          <p className="mt-2 text-[15px] text-muted">New coins as they launch, approach graduation and graduate. Updates every few seconds.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 rounded-xl border border-line-2 bg-panel-2 px-3 py-2">
@@ -271,7 +277,7 @@ export default function LivePage() {
         </div>
       </div>
 
-      {APP_NETWORK !== "mainnet" && <Alert tone="info">The Live terminal shows Solana mainnet.</Alert>}
+      {APP_NETWORK !== "mainnet" && <Alert tone="info">Live data is not available in test mode.</Alert>}
       {error && !data && <Alert tone="danger">Live data is temporarily unavailable. Retrying…</Alert>}
       {data?.partial && <Alert tone="warn">Showing new pairs only right now: the full live feed is temporarily unavailable.</Alert>}
       {toast && (

@@ -150,9 +150,9 @@ export async function analyzePortfolio(wallet: string, opts: { ownMint?: string 
   for (const h of holdings) if ((counts.get(h.symbol) ?? 0) > 1 && !KNOWN_STABLES.has(h.mint) && h.mint !== SOL_MINT) h.symbol = `${h.symbol} (${h.mint.slice(0, 4)}…)`;
 
   // Fallback pricing (pump.fun curve on-chain, then DexScreener) for a few unpriced coins.
-  const sources = ["Solana mainnet RPC (balances)", "Jupiter token API (prices, liquidity, audit)"];
+  const sources = ["Solana RPC (balances)", "Jupiter token API (prices, liquidity, audit)"];
   const unpriced = holdings.filter((h) => h.usdPrice === null).slice(0, 5);
-  if (unpriced.length) sources.push("pump.fun bonding curve / DexScreener (fallback prices)");
+  if (unpriced.length) sources.push("bonding curve / DexScreener (fallback prices)");
   await Promise.all(
     unpriced.map(async (h) => {
       const m = await getMarketData(h.mint).catch(() => null);

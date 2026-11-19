@@ -531,7 +531,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
             : "unavailable: the RPC refused the lookup",
           market:
             token.launchMode === "pumpfun"
-              ? "Trades on pump.fun (mainnet)."
+              ? "Trades on its bonding curve (or a DEX pool after graduating)."
               : "No Ryven market: fixed-supply token with no bonding curve. It only trades if someone creates a DEX pool for it.",
         }),
       };
@@ -562,7 +562,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       };
     }
     case "get_trading_status": {
-      ctx.emit({ type: "status", status: "analysing", message: "Reading trading settings and wallet (mainnet)" });
+      ctx.emit({ type: "status", status: "analysing", message: "Reading trading settings and wallet" });
       const [trades, snap, wallet] = await Promise.all([
         listTrades(agent.id, 10),
         tradingSnapshot(agent.id),
@@ -602,7 +602,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
         status: trade.status === "confirmed" ? "completed" : trade.status === "awaiting_signature" ? "awaiting_approval" : trade.status === "rejected" || trade.status === "failed" ? "failed" : "executing",
         message:
           trade.status === "confirmed"
-            ? `Trade confirmed on mainnet`
+            ? `Trade confirmed on Solana`
             : trade.status === "awaiting_signature"
               ? "Trade proposal waiting for the creator to sign"
               : `Trade ${trade.status}: ${trade.error ?? trade.policy.summary}`,
@@ -618,7 +618,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       let token = p.token.trim();
       if (token.toLowerCase() === "own") {
         const own = await db.query.tokens.findFirst({ where: eq(schema.tokens.id, agent.tokenId) });
-        if (!own || own.network !== "mainnet") return { content: "Your own coin is not on mainnet, so it has no market price to alert on.", isError: true };
+        if (!own || own.network !== "mainnet") return { content: "Your own coin has no live market yet, so there is no price to alert on.", isError: true };
         token = own.mint;
       }
       ctx.emit({ type: "status", status: "analysing", message: `Reading the current ${p.metric === "market_cap" ? "market cap" : "price"} and setting the alert` });
@@ -678,7 +678,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
       const resolveOwn = (v: string) => (v.trim().toLowerCase() === "own" ? (own?.network === "mainnet" ? own.mint : null) : v);
       const from = resolveOwn(parsed.data.input);
       const to = resolveOwn(parsed.data.output);
-      if (!from || !to) return { content: "This agent's own coin is not on mainnet, so it can't be swapped.", isError: true };
+      if (!from || !to) return { content: "This agent's own coin has no live market yet, so it can't be swapped.", isError: true };
       ctx.emit({ type: "status", status: "checking_permissions", message: `Quoting swap of ${amount} ${parsed.data.input} → ${parsed.data.output} and checking trading limits` });
       try {
         const { trade, duplicate } = await proposeSwap({ agentId: agent.id, instructionId: ctx.instructionId, input: from, output: to, amount, reason });
@@ -687,7 +687,7 @@ async function runTool(name: string, input: unknown, ctx: Ctx): Promise<{ conten
           status: trade.status === "confirmed" ? "completed" : trade.status === "awaiting_signature" ? "awaiting_approval" : trade.status === "rejected" || trade.status === "failed" ? "failed" : "executing",
           message:
             trade.status === "confirmed"
-              ? "Swap confirmed on mainnet"
+              ? "Swap confirmed on Solana"
               : trade.status === "awaiting_signature"
                 ? "Swap proposal waiting for the creator to sign"
                 : `Swap ${trade.status}: ${trade.error ?? trade.policy.summary}`,
@@ -782,6 +782,7 @@ Standing instructions from the creator: ${agent.instructions || "(none)"}
 - Swaps: you CAN swap tokens on Solana mainnet through Jupiter with swap_tokens (SOL, USDC, USDT, your own coin, or allowlisted coins), e.g. "swap 0.1 SOL to USDC". When the creator asks for a swap, call swap_tokens; the engine checks limits and tells you if trading is off or a token isn't allowed. Same proposal/autonomous rules as trading.
 - Payments can be in USDC, in SOL (asset "sol", if the creator enabled SOL payments; recipients receive plain SOL) or in your own token (asset "token", if enabled). get_treasury_status shows all of them.
 - When something needs the creator (approving or signing, turning a feature on, adding a coin or contributor, raising a limit, funding a treasury), the console automatically pops up a dialog with the right button (tool results list it in popup_shown_to_creator). Say in one short sentence what to click in that popup. Never send them to a tab or settings page.
+- Wording: never say "mainnet", "devnet", "pump.fun" or "PumpPortal" to the creator. Say "Solana" for the network, and "bonding curve" / "launchpad" for where coins launch and trade.
 - Keep replies short (under 120 words; portfolio analyses up to 200), in plain text, no markdown tables. Amounts in USDC.`;
 }
 

@@ -31,7 +31,7 @@ export const POST = handler(async (req: Request) => {
   if (!token) throw new EngineError("Token not found. Launch it first.", 404);
   if (token.creatorWallet !== wallet) throw new EngineError("Only the token's creator can deploy its agent", 403);
   if (token.network === "mainnet" && b.acknowledgeMainnet !== true) {
-    throw new EngineError("This coin is on Solana mainnet: its agent will move real USDC. Confirm you understand to deploy it.", 400);
+    throw new EngineError("This agent will move real USDC. Confirm you understand to deploy it.", 400);
   }
   const existing = await db.query.agents.findFirst({ where: eq(schema.agents.tokenId, token.id) });
   if (existing) throw new EngineError("This token already has an agent", 409);
@@ -74,7 +74,7 @@ export const POST = handler(async (req: Request) => {
     agentId: id,
     type: "deployed",
     status: "completed",
-    message: `${b.name} deployed for $${token.symbol}${token.network === "mainnet" ? " on Solana mainnet (real USDC)" : ""}`,
+    message: `${b.name} deployed for $${token.symbol}${token.network === "mainnet" ? " (real USDC)" : ""}`,
   });
   return json({ agent: agentView(agent.a, agent.t) });
 });

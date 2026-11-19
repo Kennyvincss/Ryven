@@ -5,7 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Bot, ExternalLink, Globe, LineChart, MessageCircle, Send } from "lucide-react";
 import { useApi, useAppConfig } from "@/lib/client/hooks";
 import { TradeView } from "@/components/live/trade-view";
-import { explorerAddress, explorerTx, pumpFunCoinUrl, usdcLabel } from "@/lib/shared/config";
+import { explorerAddress, explorerTx, usdcLabel } from "@/lib/shared/config";
 import { formatCompact } from "@/lib/shared/amounts";
 import { PaymentStatus } from "@/components/cards";
 import { AddressLink, AgentAvatar, Alert, Badge, Button, Card, CardHeader, Empty, Spinner, Stat, TokenImage, TxLink, timeAgo } from "@/components/ui";
@@ -86,8 +86,8 @@ export default function TokenPage() {
             <Badge tone="accent" dot>
               {t.launchStatus === "live" ? "Live" : t.launchStatus}
             </Badge>
-            <Badge>{t.launchMode === "fixed_supply" ? "Fixed supply" : t.launchMode === "pumpfun" ? "pump.fun" : "Bonding curve"}</Badge>
-            {t.network === "mainnet" && <Badge tone="warn">Solana mainnet</Badge>}
+            <Badge>{t.launchMode === "fixed_supply" ? "Fixed supply" : "Bonding curve"}</Badge>
+            {t.network === "mainnet" && <Badge tone="warn">Solana</Badge>}
           </div>
           <p className="mt-1.5 max-w-2xl text-sm text-muted">{t.description || "No description."}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
@@ -97,8 +97,8 @@ export default function TokenPage() {
               launch tx <ExternalLink className="size-3" />
             </a>
             {t.launchMode === "pumpfun" && (
-              <a href={pumpFunCoinUrl(t.mint)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-info hover:underline">
-                pump.fun <ExternalLink className="size-3" />
+              <a href={`/trade/${t.mint}`} className="inline-flex items-center gap-1 text-info hover:underline">
+                trade
               </a>
             )}
           </div>
@@ -120,7 +120,7 @@ export default function TokenPage() {
           hint={
             data.market?.source === "none" || !data.market
               ? "no market yet"
-              : data.market.source.startsWith("pump.fun")
+              : data.market.source.startsWith("bonding curve")
                 ? "from on-chain bonding curve"
                 : "from DEX data"
           }

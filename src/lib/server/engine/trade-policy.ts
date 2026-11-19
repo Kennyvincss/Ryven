@@ -76,7 +76,7 @@ export function evaluateTrade(p: TradingPolicy, t: TradeProposal, ctx: TradeCont
         id: "wallet_balance",
         label: "Trading wallet funded",
         passed: have !== null && have >= need,
-        detail: have === null ? "Could not read the trading wallet on mainnet" : `${sol(have)} in wallet, ${sol(need)} needed incl. fees`,
+        detail: have === null ? "Could not read the trading wallet" : `${sol(have)} in wallet, ${sol(need)} needed incl. fees`,
         effect: "reject",
       });
     }

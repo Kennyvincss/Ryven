@@ -23,7 +23,7 @@ export const POST = handler(async (req: Request) => {
   enforceRateLimit(req, "faucet", 3, 60 * 60_000, wallet);
   const authority = getTestUsdcAuthority();
   if (APP_NETWORK !== "devnet" || !serverEnv.testUsdcFaucetEnabled || !authority || publicConfig.usdcMint === CIRCLE_DEVNET_USDC) {
-    throw new EngineError("There is no faucet on mainnet: real USDC is required.", 404);
+    throw new EngineError("There is no test faucet: real USDC is required.", 404);
   }
   const mint = new PublicKey(publicConfig.usdcMint);
   const owner = new PublicKey(wallet);

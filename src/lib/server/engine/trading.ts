@@ -56,7 +56,7 @@ async function spentToday(agentId: string) {
 }
 
 function tradeRequest(t: Pick<Trade, "action" | "mint" | "amount">, wallet: string): TradeRequest {
-  if (t.action === "swap") throw new EngineError("Not a pump.fun trade", 500);
+  if (t.action === "swap") throw new EngineError("Not a bonding-curve trade", 500);
   return { wallet, action: t.action, mint: t.mint, amount: t.action === "buy" ? Number(t.amount) / 1e9 : Number(t.amount) };
 }
 
@@ -277,8 +277,8 @@ async function recordConfirmed(trade: Trade, signature: string) {
     status: "completed",
     message:
       trade.action === "swap"
-        ? `Swap confirmed on mainnet: ${describe(trade)}${outputAmount !== null ? `, received ${fromBaseUnits(outputAmount, trade.outputDecimals ?? 0)} ${symbolOf(trade.mint)}` : ""}`
-        : `Trade confirmed on mainnet: ${trade.action} ${short(trade.mint)}${delta !== null ? ` (SOL change ${Number(delta) / 1e9})` : ""}`,
+        ? `Swap confirmed on Solana: ${describe(trade)}${outputAmount !== null ? `, received ${fromBaseUnits(outputAmount, trade.outputDecimals ?? 0)} ${symbolOf(trade.mint)}` : ""}`
+        : `Trade confirmed on Solana: ${trade.action} ${short(trade.mint)}${delta !== null ? ` (SOL change ${Number(delta) / 1e9})` : ""}`,
     data: { tradeId: trade.id, signature, network: "mainnet" },
   });
   return t;

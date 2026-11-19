@@ -6,7 +6,6 @@ import { ArrowLeft, Globe, MessageCircle, Send, ShieldAlert, ShieldCheck } from 
 import { TradeView } from "@/components/live/trade-view";
 import { AddressLink, Alert, Card, Stat, TokenImage, cn } from "@/components/ui";
 import { age, compact, pct, usd, type LiveCoin } from "@/lib/client/live";
-import { pumpFunCoinUrl } from "@/lib/shared/config";
 
 function useLiveToken(mint: string) {
   const [token, setToken] = useState<LiveCoin | null>(null);
@@ -77,9 +76,6 @@ export default function TradePage() {
                 Dev <AddressLink address={t.dev} network="mainnet" />
               </span>
             )}
-            <a href={pumpFunCoinUrl(mint)} target="_blank" rel="noreferrer" className="hover:text-text">
-              pump.fun ↗
-            </a>
           </div>
         </div>
         <div className="flex gap-2 text-muted">

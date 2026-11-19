@@ -75,7 +75,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-line-2 bg-panel p-5 shadow-2xl">{children}</div>
+      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-white/[0.1] bg-panel bg-gradient-to-b from-accent/[0.06] to-transparent p-5 shadow-2xl shadow-black/60">{children}</div>
     </div>
   );
 }
@@ -172,13 +172,13 @@ function ActionBody({ action: a, agent, onDone }: { action: ConsoleAction; agent
       );
       break;
     case "sign_trade":
-      body = <p className="text-xs text-muted">Your wallet will show the exact transaction. Ryven checked it and simulated it on mainnet first.</p>;
+      body = <p className="text-xs text-muted">Your wallet will show the exact transaction. Ryven checked it and simulated it on Solana first.</p>;
       buttons = (
         <>
           <Button variant="ghost" loading={busy} onClick={() => run(() => api(`/api/trades/${a.tradeId}/cancel`, { method: "POST" }).then(() => undefined), "Trade dismissed.")}>
             Dismiss
           </Button>
-          <Button loading={busy} onClick={() => run(async () => ({ text: "Trade confirmed on mainnet.", sig: (await signTrade(a.tradeId)) ?? undefined }), "")}>
+          <Button loading={busy} onClick={() => run(async () => ({ text: "Trade confirmed on Solana.", sig: (await signTrade(a.tradeId)) ?? undefined }), "")}>
             Sign &amp; send
           </Button>
         </>

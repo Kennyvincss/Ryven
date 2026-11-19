@@ -103,7 +103,7 @@ export function PriceChart({ mint, height = 420 }: { mint: string; height?: numb
   const change = last && last.open ? ((last.close - last.open) / last.open) * 100 : null;
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-bg">
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-white/[0.07] bg-[#07090b]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="flex flex-wrap gap-0.5">
           {INTERVALS.map((i) => (
@@ -136,7 +136,7 @@ export function PriceChart({ mint, height = 420 }: { mint: string; height?: numb
       <div className="relative" style={{ height }}>
         <div ref={box} className="absolute inset-0" />
         {state !== "ready" && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs text-muted">
+          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-xs text-muted">
             {state === "loading" ? "Loading chart…" : state === "empty" ? "No trades in this timeframe yet." : "Chart data is temporarily unavailable."}
           </div>
         )}

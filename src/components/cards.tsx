@@ -29,7 +29,7 @@ export function TokenCard({ t }: { t: TokenListItem }) {
   const isPump = t.launchMode === "pumpfun";
   return (
     <Link href={`/tokens/${t.mint}`} className="group block">
-      <Card className="h-full p-4 transition-colors group-hover:border-line-2 group-hover:bg-panel-2">
+      <Card className="h-full p-4 transition group-hover:-translate-y-0.5 group-hover:border-accent/30 group-hover:shadow-[0_12px_40px_-20px_rgba(198,255,61,0.45)]">
         <div className="flex gap-3">
           <TokenImage src={t.imageUri} symbol={t.symbol} size={56} />
           <div className="min-w-0 flex-1">
@@ -38,7 +38,7 @@ export function TokenCard({ t }: { t: TokenListItem }) {
               <span className="shrink-0 font-mono text-xs text-muted">${t.symbol}</span>
               {isPump && (
                 <Badge tone="accent" className="shrink-0">
-                  pump.fun
+                  Curve
                 </Badge>
               )}
             </div>
@@ -56,14 +56,14 @@ export function TokenCard({ t }: { t: TokenListItem }) {
           <div>
             <div className="text-faint">{isCurve ? "Volume" : "Market"}</div>
             <div className="mt-0.5 font-mono text-text">
-              {isCurve ? `${formatCompact(Number(t.volumeLamports) / 1e9)} SOL` : isPump ? "pump.fun" : "Fixed"}
+              {isCurve ? `${formatCompact(Number(t.volumeLamports) / 1e9)} SOL` : isPump ? "Curve" : "Fixed"}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-faint">{isPump ? "Network" : "Agent"}</div>
+            <div className="text-faint">{isPump ? "Trade" : "Agent"}</div>
             <div className="mt-0.5">
               {isPump ? (
-                <Badge tone="warn">mainnet</Badge>
+                <Badge tone="accent">Live</Badge>
               ) : t.agent ? (
                 <Badge tone={t.agent.status === "active" ? "agent" : "warn"} dot>
                   {t.agent.status === "active" ? "Active" : "Paused"}
@@ -95,7 +95,7 @@ export type AgentListItem = {
 export function AgentCard({ a }: { a: AgentListItem }) {
   return (
     <Link href={`/agents/${a.id}`} className="group block">
-      <Card className="h-full p-4 transition-colors group-hover:border-line-2 group-hover:bg-panel-2">
+      <Card className="h-full p-4 transition group-hover:-translate-y-0.5 group-hover:border-accent/30 group-hover:shadow-[0_12px_40px_-20px_rgba(198,255,61,0.45)]">
         <div className="flex items-start gap-3">
           <AgentAvatar seed={a.avatarSeed} size={48} />
           <div className="min-w-0 flex-1">
