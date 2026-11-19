@@ -12,7 +12,8 @@
     "db:migrate": "tsx scripts/migrate.mts",
     "keys": "tsx scripts/generate-keys.ts",
     "test-usdc": "tsx scripts/create-test-usdc.mts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fee-payer": "tsx --env-file=.env scripts/fee-payer.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

@@ -60,6 +60,12 @@ The fee payer pays the network fees of agent payments (~0.000005 SOL each, plus 
 the first time a wallet receives a token). From Phantom, send **about 0.05 SOL** to the fee
 payer address.
 
+To see the fee payer address and its balance at any time (it never prints the secret):
+
+```bash
+npm run fee-payer
+```
+
 ### 2c. Database
 
 Supabase: create a project → **Connect** → **Direct** → **Session pooler** → copy the string
