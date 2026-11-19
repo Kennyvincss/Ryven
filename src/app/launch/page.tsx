@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
-import { Bot, Check, ExternalLink, ImagePlus, Rocket, TriangleAlert, Wallet } from "lucide-react";
+import { Bot, Check, ExternalLink, ImagePlus, Rocket, Wallet } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { sendWalletTransaction } from "@/lib/client/wallet-tx";
 import { useAppConfig } from "@/lib/client/hooks";
@@ -13,6 +13,7 @@ import { APP_NETWORK, LAUNCH_TOKEN_DECIMALS, explorerTx } from "@/lib/shared/con
 import { AuthGate } from "@/components/wallet-button";
 import { DEFAULT_POLICY, PolicyForm, policyPayload, type PolicyState } from "@/components/agent-policy-form";
 import { FundTreasury } from "@/components/treasury-actions";
+import { RiskNotice } from "@/components/risk-notice";
 import { Alert, Button, Card, CardHeader, Field, Input, PageHeader, Spinner, Textarea, TokenImage, TxLink, cn } from "@/components/ui";
 
 type Token = { mint: string; name: string; symbol: string; imageUri: string | null; launchSignature: string; network?: "devnet" | "mainnet"; launchMode?: string };
@@ -227,7 +228,7 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
                   >
                     <div className="font-medium">Bonding curve</div>
                     <div className="text-xs text-muted">
-                      {config.pumpfunReady ? "Real Solana coin, tradable right away on a bonding curve. Agents not supported yet." : "Bonding-curve launches are temporarily unavailable."}
+                      {config.pumpfunReady ? "Real Solana coin, tradable right away on a bonding curve. Supports AI agents." : "Bonding-curve launches are temporarily unavailable."}
                     </div>
                   </button>
                 ) : (
@@ -252,26 +253,25 @@ function TokenStep({ onLaunched }: { onLaunched: (t: Token) => void }) {
             )}
           </div>
           {APP_NETWORK === "mainnet" && (
-            <div className="space-y-3 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
-              <div className="flex items-center gap-2 font-semibold text-warn">
-                <TriangleAlert className="size-4" /> Every launch is a real Solana coin and uses real SOL
-              </div>
-              <ul className="list-disc space-y-1 pl-5 text-xs text-text/80">
-                <li>Make sure your wallet isn&apos;t in test mode (Phantom: Settings → Developer Settings → Testnet Mode off).</li>
-                {mode === "pumpfun" ? (
-                  <>
-                    <li>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</li>
-                    <li>The coin is created through a third-party launch service. Ryven checks the transaction before you sign it.</li>
-                  </>
+            <RiskNotice
+              title="Every launch is a real Solana coin and uses real SOL"
+              items={[
+                <>Make sure your wallet isn&apos;t in test mode (Phantom: Settings → Developer Settings → Testnet Mode off).</>,
+                mode === "pumpfun" ? (
+                  <>Costs roughly 0.02–0.03 SOL in fees and rent, plus your dev buy. It can&apos;t be undone.</>
                 ) : (
-                  <li>Costs roughly 0.005 SOL in fees and rent. It can&apos;t be undone.</li>
-                )}
-              </ul>
-              <label className="flex items-start gap-2 text-xs">
-                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
-                I understand this spends real SOL and creates a public coin.
-              </label>
-            </div>
+                  <>Costs roughly 0.005 SOL in fees and rent. It can&apos;t be undone.</>
+                ),
+                mode === "pumpfun" ? (
+                  <>The coin is created through a third-party launch service and is tradable right away. Ryven checks the transaction before you sign it.</>
+                ) : (
+                  <>The full supply goes to your wallet. It becomes tradable once liquidity is added on an exchange.</>
+                ),
+              ]}
+              checked={ack}
+              onChange={setAck}
+              confirmLabel="I understand this spends real SOL and creates a public coin."
+            />
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {status && !error && <Alert tone="info">{status}</Alert>}
@@ -347,19 +347,18 @@ function AgentStep({ token, onDeployed }: { token: Token; onDeployed: (a: Agent)
           give it a capped on-chain allowance over a treasury you own. The AI model never sees the key.
         </Alert>
         {isMainnet && (
-          <div className="space-y-2 rounded-xl border border-warn/40 bg-warn/[0.06] p-4 text-sm">
-            <div className="flex items-center gap-2 font-semibold text-warn">
-              <TriangleAlert className="size-4" /> This agent moves real USDC
-            </div>
-            <p className="text-xs text-text/80">
-              Its treasury is a USDC account you own; it can only spend the allowance you give it, within the limits above. Start small. Ryven
-              pays the network fees for its payments.
-            </p>
-            <label className="flex items-start gap-2 text-xs">
-              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" /> I understand this agent moves real
-              money.
-            </label>
-          </div>
+          <RiskNotice
+            eyebrow="Before you deploy"
+            title="This agent moves real USDC"
+            items={[
+              <>Its treasury is a USDC account you own. The agent can only spend the allowance you give it, within the limits above.</>,
+              <>Start small. You can pause the agent or revoke its allowance at any time.</>,
+              <>Ryven pays the network fees for its payments.</>,
+            ]}
+            checked={ack}
+            onChange={setAck}
+            confirmLabel="I understand this agent moves real money."
+          />
         )}
         {error && <Alert tone="danger">{error}</Alert>}
         <Button onClick={deploy} loading={busy} variant="agent" size="lg" className="w-full">
@@ -419,7 +418,7 @@ function LaunchFlow() {
   return (
     <>
       <Steps step={step} />
-      {token?.network === "mainnet" && !agent && <PumpFunSuccess token={token} />}
+      {token?.network === "mainnet" && token.launchMode === "pumpfun" && !agent && <PumpFunSuccess token={token} />}
       {token && (
         <Card className="mb-4 flex items-center gap-3 p-4">
           <TokenImage src={token.imageUri} symbol={token.symbol} size={40} />
